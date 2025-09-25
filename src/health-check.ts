@@ -8,5 +8,5 @@ async function bootstrap() {
 
 // Health check for Docker
 if (require.main === module) {
-  bootstrap();
+  void bootstrap();
 }
