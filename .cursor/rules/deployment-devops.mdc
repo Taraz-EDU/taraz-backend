@@ -1,0 +1,589 @@
+---
+description: Deployment and DevOps Standards for NestJS
+globs: ["**/Dockerfile", "**/docker-compose.yml", "**/.github/**", "**/package.json", "**/.env*"]
+alwaysApply: true
+---
+
+# Deployment and DevOps Standards for NestJS
+
+## Docker Configuration
+- **Use multi-stage builds** for optimized images
+- **Use specific Node.js versions** for consistency
+- **Implement proper layer caching** for faster builds
+- **Use non-root users** for security
+- **Optimize image size** with minimal dependencies
+
+```dockerfile
+# Good: Multi-stage Dockerfile
+FROM node:18-alpine AS builder
+
+WORKDIR /app
+
+# Copy package files
+COPY package*.json ./
+RUN npm ci --only=production && npm cache clean --force
+
+# Copy source code
+COPY . .
+
+# Build the application
+RUN npm run build
+
+# Production stage
+FROM node:18-alpine AS production
+
+# Create non-root user
+RUN addgroup -g 1001 -S nodejs
+RUN adduser -S nestjs -u 1001
+
+WORKDIR /app
+
+# Copy built application and dependencies
+COPY --from=builder /app/node_modules ./node_modules
+COPY --from=builder /app/dist ./dist
+COPY --from=builder /app/package*.json ./
+
+# Change ownership to non-root user
+RUN chown -R nestjs:nodejs /app
+USER nestjs
+
+# Expose port
+EXPOSE 3000
+
+# Health check
+HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
+  CMD node dist/health-check.js
+
+# Start the application
+CMD ["node", "dist/main.js"]
+```
+
+## Docker Compose Configuration
+- **Use environment variables** for configuration
+- **Implement proper networking** between services
+- **Use named volumes** for data persistence
+- **Configure health checks** for all services
+- **Use restart policies** for reliability
+
+```yaml
+# Good: Docker Compose configuration
+version: '3.8'
+
+services:
+  app:
+    build: .
+    ports:
+      - "${PORT:-3000}:3000"
+    environment:
+      - NODE_ENV=production
+      - DATABASE_URL=postgresql://postgres:password@db:5432/app_db
+      - REDIS_URL=redis://redis:6379
+      - JWT_SECRET=${JWT_SECRET}
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+  db:
+    image: postgres:15-alpine
+    environment:
+      - POSTGRES_DB=app_db
+      - POSTGRES_USER=postgres
+      - POSTGRES_PASSWORD=password
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./init.sql:/docker-entrypoint-initdb.d/init.sql
+    ports:
+      - "5432:5432"
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+
+  nginx:
+    image: nginx:alpine
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./nginx.conf:/etc/nginx/nginx.conf
+      - ./ssl:/etc/nginx/ssl
+    depends_on:
+      - app
+    restart: unless-stopped
+
+volumes:
+  postgres_data:
+  redis_data:
+```
+
+## Environment Configuration
+- **Use environment-specific configurations**
+- **Validate required environment variables** at startup
+- **Use secure defaults** for development
+- **Document all environment variables**
+- **Use configuration validation** with schemas
+
+```typescript
+// Good: Environment configuration
+import { IsString, IsNumber, IsOptional, validateSync } from 'class-validator';
+import { Transform } from 'class-transformer';
+
+export class EnvironmentVariables {
+  @IsString()
+  NODE_ENV: string = 'development';
+
+  @IsNumber()
+  @Transform(({ value }) => parseInt(value))
+  PORT: number = 3000;
+
+  @IsString()
+  DATABASE_URL: string;
+
+  @IsString()
+  REDIS_URL: string;
+
+  @IsString()
+  JWT_SECRET: string;
+
+  @IsOptional()
+  @IsString()
+  JWT_EXPIRES_IN: string = '1h';
+
+  @IsOptional()
+  @IsString()
+  CORS_ORIGIN: string = 'http://localhost:3000';
+
+  @IsOptional()
+  @IsString()
+  LOG_LEVEL: string = 'info';
+}
+
+export function validate(config: Record<string, unknown>) {
+  const validatedConfig = new EnvironmentVariables();
+  Object.assign(validatedConfig, config);
+
+  const errors = validateSync(validatedConfig);
+  if (errors.length > 0) {
+    throw new Error(`Configuration validation error: ${errors.toString()}`);
+  }
+
+  return validatedConfig;
+}
+```
+
+## CI/CD Pipeline
+- **Implement automated testing** in CI pipeline
+- **Use code quality checks** (linting, formatting)
+- **Run security scans** for vulnerabilities
+- **Implement automated deployments**
+- **Use deployment strategies** (blue-green, rolling)
+
+```yaml
+# Good: GitHub Actions CI/CD pipeline
+name: CI/CD Pipeline
+
+on:
+  push:
+    branches: [main, develop]
+  pull_request:
+    branches: [main]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    
+    services:
+      postgres:
+        image: postgres:15
+        env:
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: test_db
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 5432:5432
+
+    steps:
+      - uses: actions/checkout@v3
+      
+      - name: Setup Node.js
+        uses: actions/setup-node@v3
+        with:
+          node-version: '18'
+          cache: 'npm'
+      
+      - name: Install dependencies
+        run: npm ci
+      
+      - name: Run linting
+        run: npm run lint
+      
+      - name: Run formatting check
+        run: npm run format:check
+      
+      - name: Run unit tests
+        run: npm run test
+        env:
+          DATABASE_URL: postgresql://postgres:postgres@localhost:5432/test_db
+      
+      - name: Run integration tests
+        run: npm run test:e2e
+        env:
+          DATABASE_URL: postgresql://postgres:postgres@localhost:5432/test_db
+      
+      - name: Run security audit
+        run: npm audit --audit-level moderate
+      
+      - name: Generate coverage report
+        run: npm run test:cov
+      
+      - name: Upload coverage to Codecov
+        uses: codecov/codecov-action@v3
+
+  build:
+    needs: test
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/main'
+    
+    steps:
+      - uses: actions/checkout@v3
+      
+      - name: Setup Node.js
+        uses: actions/setup-node@v3
+        with:
+          node-version: '18'
+          cache: 'npm'
+      
+      - name: Install dependencies
+        run: npm ci
+      
+      - name: Build application
+        run: npm run build
+      
+      - name: Build Docker image
+        run: docker build -t ${{ github.repository }}:${{ github.sha }} .
+      
+      - name: Push to registry
+        run: |
+          echo ${{ secrets.DOCKER_PASSWORD }} | docker login -u ${{ secrets.DOCKER_USERNAME }} --password-stdin
+          docker push ${{ github.repository }}:${{ github.sha }}
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/main'
+    
+    steps:
+      - name: Deploy to production
+        run: |
+          # Deployment script here
+          echo "Deploying to production..."
+```
+
+## Kubernetes Configuration
+- **Use Kubernetes manifests** for container orchestration
+- **Implement proper resource limits** and requests
+- **Use ConfigMaps and Secrets** for configuration
+- **Implement health checks** and readiness probes
+- **Use horizontal pod autoscaling**
+
+```yaml
+# Good: Kubernetes deployment
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: nestjs-app
+  labels:
+    app: nestjs-app
+spec:
+  replicas: 3
+  selector:
+    matchLabels:
+      app: nestjs-app
+  template:
+    metadata:
+      labels:
+        app: nestjs-app
+    spec:
+      containers:
+      - name: nestjs-app
+        image: nestjs-app:latest
+        ports:
+        - containerPort: 3000
+        env:
+        - name: NODE_ENV
+          value: "production"
+        - name: DATABASE_URL
+          valueFrom:
+            secretKeyRef:
+              name: app-secrets
+              key: database-url
+        - name: JWT_SECRET
+          valueFrom:
+            secretKeyRef:
+              name: app-secrets
+              key: jwt-secret
+        resources:
+          requests:
+            memory: "256Mi"
+            cpu: "250m"
+          limits:
+            memory: "512Mi"
+            cpu: "500m"
+        livenessProbe:
+          httpGet:
+            path: /health
+            port: 3000
+          initialDelaySeconds: 30
+          periodSeconds: 10
+        readinessProbe:
+          httpGet:
+            path: /health
+            port: 3000
+          initialDelaySeconds: 5
+          periodSeconds: 5
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: nestjs-app-service
+spec:
+  selector:
+    app: nestjs-app
+  ports:
+  - port: 80
+    targetPort: 3000
+  type: LoadBalancer
+---
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: nestjs-app-hpa
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: nestjs-app
+  minReplicas: 3
+  maxReplicas: 10
+  metrics:
+  - type: Resource
+    resource:
+      name: cpu
+      target:
+        type: Utilization
+        averageUtilization: 70
+```
+
+## Monitoring and Observability
+- **Implement application metrics** collection
+- **Use distributed tracing** for request tracking
+- **Set up log aggregation** and analysis
+- **Implement alerting** for critical issues
+- **Monitor application performance** and health
+
+```typescript
+// Good: Monitoring setup
+import { PrometheusModule } from '@willsoto/nestjs-prometheus';
+import { PrometheusController } from './prometheus.controller';
+
+@Module({
+  imports: [
+    PrometheusModule.register({
+      defaultMetrics: {
+        enabled: true,
+        config: {
+          prefix: 'nestjs_',
+        },
+      },
+    }),
+  ],
+  controllers: [PrometheusController],
+})
+export class MonitoringModule {}
+
+// Good: Custom metrics
+@Injectable()
+export class MetricsService {
+  private readonly httpRequestsTotal = new Counter({
+    name: 'http_requests_total',
+    help: 'Total number of HTTP requests',
+    labelNames: ['method', 'route', 'status_code'],
+  });
+
+  private readonly httpRequestDuration = new Histogram({
+    name: 'http_request_duration_seconds',
+    help: 'HTTP request duration in seconds',
+    labelNames: ['method', 'route'],
+  });
+
+  recordHttpRequest(method: string, route: string, statusCode: number, duration: number): void {
+    this.httpRequestsTotal.inc({ method, route, status_code: statusCode.toString() });
+    this.httpRequestDuration.observe({ method, route }, duration);
+  }
+}
+```
+
+## Security in Deployment
+- **Use secrets management** for sensitive data
+- **Implement network security** policies
+- **Use container security** scanning
+- **Implement proper access controls**
+- **Use secure communication** protocols
+
+```yaml
+# Good: Network security policy
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: nestjs-app-network-policy
+spec:
+  podSelector:
+    matchLabels:
+      app: nestjs-app
+  policyTypes:
+  - Ingress
+  - Egress
+  ingress:
+  - from:
+    - namespaceSelector:
+        matchLabels:
+          name: ingress-nginx
+    ports:
+    - protocol: TCP
+      port: 3000
+  egress:
+  - to:
+    - namespaceSelector:
+        matchLabels:
+          name: postgres
+    ports:
+    - protocol: TCP
+      port: 5432
+  - to:
+    - namespaceSelector:
+        matchLabels:
+          name: redis
+    ports:
+    - protocol: TCP
+      port: 6379
+```
+
+## Backup and Recovery
+- **Implement database backups** with automated schedules
+- **Use point-in-time recovery** for critical data
+- **Test backup restoration** procedures regularly
+- **Implement disaster recovery** plans
+- **Monitor backup success** and failures
+
+```bash
+# Good: Database backup script
+#!/bin/bash
+
+# Database backup script
+BACKUP_DIR="/backups"
+DATE=$(date +%Y%m%d_%H%M%S)
+DB_NAME="app_db"
+DB_USER="postgres"
+DB_HOST="postgres"
+
+# Create backup
+pg_dump -h $DB_HOST -U $DB_USER -d $DB_NAME > $BACKUP_DIR/backup_$DATE.sql
+
+# Compress backup
+gzip $BACKUP_DIR/backup_$DATE.sql
+
+# Remove old backups (keep last 7 days)
+find $BACKUP_DIR -name "backup_*.sql.gz" -mtime +7 -delete
+
+# Upload to cloud storage
+aws s3 cp $BACKUP_DIR/backup_$DATE.sql.gz s3://backup-bucket/database/
+```
+
+## Infrastructure as Code
+- **Use Terraform** for infrastructure management
+- **Implement infrastructure versioning**
+- **Use consistent environments** (dev, staging, prod)
+- **Automate infrastructure provisioning**
+- **Implement infrastructure monitoring**
+
+```hcl
+# Good: Terraform configuration
+resource "aws_ecs_cluster" "nestjs_cluster" {
+  name = "nestjs-cluster"
+}
+
+resource "aws_ecs_service" "nestjs_service" {
+  name            = "nestjs-service"
+  cluster         = aws_ecs_cluster.nestjs_cluster.id
+  task_definition = aws_ecs_task_definition.nestjs_task.arn
+  desired_count   = 3
+
+  load_balancer {
+    target_group_arn = aws_lb_target_group.nestjs_tg.arn
+    container_name   = "nestjs-app"
+    container_port   = 3000
+  }
+}
+
+resource "aws_ecs_task_definition" "nestjs_task" {
+  family                   = "nestjs-task"
+  network_mode             = "awsvpc"
+  requires_compatibilities = ["FARGATE"]
+  cpu                      = 512
+  memory                   = 1024
+  execution_role_arn      = aws_iam_role.ecs_execution_role.arn
+
+  container_definitions = jsonencode([
+    {
+      name  = "nestjs-app"
+      image = "nestjs-app:latest"
+      portMappings = [
+        {
+          containerPort = 3000
+          protocol      = "tcp"
+        }
+      ]
+      environment = [
+        {
+          name  = "NODE_ENV"
+          value = "production"
+        }
+      ]
+      secrets = [
+        {
+          name      = "DATABASE_URL"
+          valueFrom = aws_secretsmanager_secret.database_url.arn
+        }
+      ]
+    }
+  ])
+}
+```

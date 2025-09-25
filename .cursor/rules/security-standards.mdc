@@ -1,0 +1,310 @@
+---
+description: Security Best Practices for NestJS Applications
+globs: ["**/*.ts", "**/*.env*", "**/package.json"]
+alwaysApply: true
+---
+
+# Security Best Practices for NestJS Applications
+
+## Authentication & Authorization
+- **Use JWT tokens** for stateless authentication
+- **Implement proper token expiration** and refresh mechanisms
+- **Use strong password hashing** (bcrypt with appropriate rounds)
+- **Implement role-based access control (RBAC)**
+- **Use guards for route protection**
+
+```typescript
+// Good: JWT Authentication Guard
+@Injectable()
+export class JwtAuthGuard extends AuthGuard('jwt') {
+  canActivate(context: ExecutionContext): boolean | Promise<boolean> {
+    return super.canActivate(context);
+  }
+}
+
+// Good: Role-based authorization
+@Injectable()
+export class RolesGuard implements CanActivate {
+  constructor(private reflector: Reflector) {}
+
+  canActivate(context: ExecutionContext): boolean {
+    const requiredRoles = this.reflector.getAllAndOverride<Role[]>('roles', [
+      context.getHandler(),
+      context.getClass(),
+    ]);
+    
+    if (!requiredRoles) return true;
+    
+    const { user } = context.switchToHttp().getRequest();
+    return requiredRoles.some((role) => user.roles?.includes(role));
+  }
+}
+```
+
+## Input Validation & Sanitization
+- **Use DTOs with class-validator** for all input validation
+- **Sanitize user input** to prevent XSS attacks
+- **Validate file uploads** (type, size, content)
+- **Use whitelist validation** instead of blacklist
+- **Implement rate limiting** for API endpoints
+
+```typescript
+// Good: Input validation with DTOs
+export class CreateUserDto {
+  @IsEmail()
+  @IsNotEmpty()
+  email: string;
+
+  @IsString()
+  @MinLength(8)
+  @Matches(/^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*?&])[A-Za-z\d@$!%*?&]/, {
+    message: 'Password must contain uppercase, lowercase, number and special character'
+  })
+  password: string;
+
+  @IsString()
+  @Length(2, 50)
+  @Transform(({ value }) => value?.trim())
+  firstName: string;
+}
+
+// Good: File upload validation
+@Post('upload')
+@UseInterceptors(FileInterceptor('file'))
+async uploadFile(@UploadedFile() file: Express.Multer.File) {
+  // Validate file type
+  if (!file.mimetype.startsWith('image/')) {
+    throw new BadRequestException('Only image files are allowed');
+  }
+  
+  // Validate file size (5MB limit)
+  if (file.size > 5 * 1024 * 1024) {
+    throw new BadRequestException('File size must be less than 5MB');
+  }
+}
+```
+
+## Data Protection
+- **Encrypt sensitive data** at rest and in transit
+- **Use HTTPS** for all communications
+- **Implement proper CORS** configuration
+- **Use environment variables** for sensitive configuration
+- **Never log sensitive information**
+
+```typescript
+// Good: CORS configuration
+const corsOptions = {
+  origin: process.env.ALLOWED_ORIGINS?.split(',') || ['http://localhost:3000'],
+  credentials: true,
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH'],
+  allowedHeaders: ['Content-Type', 'Authorization'],
+};
+
+// Good: Environment-based configuration
+@Injectable()
+export class ConfigService {
+  private readonly jwtSecret = process.env.JWT_SECRET;
+  private readonly databaseUrl = process.env.DATABASE_URL;
+  
+  getJwtConfig() {
+    if (!this.jwtSecret) {
+      throw new Error('JWT_SECRET is required');
+    }
+    return {
+      secret: this.jwtSecret,
+      expiresIn: '1h',
+    };
+  }
+}
+```
+
+## Database Security
+- **Use parameterized queries** to prevent SQL injection
+- **Implement database connection encryption**
+- **Use least privilege principle** for database users
+- **Regular security updates** for database software
+- **Implement database audit logging**
+
+```typescript
+// Good: Repository with parameterized queries
+@Injectable()
+export class UserRepository {
+  constructor(
+    @InjectRepository(User)
+    private readonly repository: Repository<User>,
+  ) {}
+
+  async findByEmail(email: string): Promise<User | null> {
+    // TypeORM automatically uses parameterized queries
+    return this.repository.findOne({ where: { email } });
+  }
+
+  async findByIds(ids: string[]): Promise<User[]> {
+    // Safe array parameter handling
+    return this.repository.findByIds(ids);
+  }
+}
+```
+
+## API Security
+- **Implement API versioning** for backward compatibility
+- **Use proper HTTP status codes**
+- **Implement request/response logging** (without sensitive data)
+- **Use API keys** for external service authentication
+- **Implement request size limits**
+
+```typescript
+// Good: API versioning and security
+@Controller('api/v1/users')
+@ApiTags('Users')
+@UseGuards(JwtAuthGuard)
+export class UserController {
+  constructor(private readonly userService: UserService) {}
+
+  @Get(':id')
+  @ApiOperation({ summary: 'Get user by ID' })
+  @ApiResponse({ status: 200, description: 'User found' })
+  @ApiResponse({ status: 404, description: 'User not found' })
+  async findOne(@Param('id', ParseUUIDPipe) id: string): Promise<UserDto> {
+    return this.userService.findOne(id);
+  }
+}
+```
+
+## Error Handling Security
+- **Don't expose internal errors** to clients
+- **Log security events** for monitoring
+- **Use generic error messages** for user-facing errors
+- **Implement proper error boundaries**
+
+```typescript
+// Good: Secure error handling
+@Catch()
+export class GlobalExceptionFilter implements ExceptionFilter {
+  private readonly logger = new Logger(GlobalExceptionFilter.name);
+
+  catch(exception: unknown, host: ArgumentsHost) {
+    const ctx = host.switchToHttp();
+    const response = ctx.getResponse();
+    const request = ctx.getRequest();
+
+    let status = HttpStatus.INTERNAL_SERVER_ERROR;
+    let message = 'Internal server error';
+
+    if (exception instanceof HttpException) {
+      status = exception.getStatus();
+      message = exception.message;
+    }
+
+    // Log the actual error for debugging
+    this.logger.error(`Error in ${request.url}:`, exception);
+
+    // Don't expose internal errors to client
+    response.status(status).json({
+      statusCode: status,
+      message: message,
+      timestamp: new Date().toISOString(),
+      path: request.url,
+    });
+  }
+}
+```
+
+## Security Headers
+- **Implement security headers** (Helmet.js)
+- **Use Content Security Policy (CSP)**
+- **Implement HSTS** for HTTPS enforcement
+- **Use X-Frame-Options** to prevent clickjacking
+
+```typescript
+// Good: Security headers configuration
+import helmet from 'helmet';
+
+async function bootstrap() {
+  const app = await NestFactory.create(AppModule);
+  
+  // Security headers
+  app.use(helmet({
+    contentSecurityPolicy: {
+      directives: {
+        defaultSrc: ["'self'"],
+        styleSrc: ["'self'", "'unsafe-inline'"],
+        scriptSrc: ["'self'"],
+        imgSrc: ["'self'", "data:", "https:"],
+      },
+    },
+    hsts: {
+      maxAge: 31536000,
+      includeSubDomains: true,
+      preload: true,
+    },
+  }));
+
+  await app.listen(3000);
+}
+```
+
+## Dependency Security
+- **Regular dependency updates** for security patches
+- **Use npm audit** to check for vulnerabilities
+- **Implement dependency scanning** in CI/CD
+- **Use lock files** to ensure consistent dependencies
+
+```bash
+# Good: Security audit commands
+npm audit
+npm audit fix
+npm audit --audit-level moderate
+```
+
+## Environment Security
+- **Use different configurations** for different environments
+- **Never commit secrets** to version control
+- **Use secret management** services in production
+- **Implement proper backup strategies**
+
+```typescript
+// Good: Environment-based security configuration
+@Injectable()
+export class SecurityConfig {
+  getCorsConfig() {
+    const isProduction = process.env.NODE_ENV === 'production';
+    
+    return {
+      origin: isProduction 
+        ? process.env.ALLOWED_ORIGINS?.split(',')
+        : ['http://localhost:3000'],
+      credentials: true,
+    };
+  }
+
+  getRateLimitConfig() {
+    return {
+      windowMs: 15 * 60 * 1000, // 15 minutes
+      max: process.env.NODE_ENV === 'production' ? 100 : 1000,
+    };
+  }
+}
+```
+
+## Monitoring & Logging
+- **Implement security event logging**
+- **Monitor for suspicious activities**
+- **Use structured logging** for better analysis
+- **Implement alerting** for security events
+
+```typescript
+// Good: Security event logging
+@Injectable()
+export class SecurityLogger {
+  private readonly logger = new Logger(SecurityLogger.name);
+
+  logFailedLogin(ip: string, email: string) {
+    this.logger.warn(`Failed login attempt from ${ip} for email ${email}`);
+  }
+
+  logSuspiciousActivity(ip: string, activity: string) {
+    this.logger.error(`Suspicious activity from ${ip}: ${activity}`);
+  }
+}
+```

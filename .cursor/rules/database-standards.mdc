@@ -1,0 +1,405 @@
+---
+description: Database and ORM Best Practices for NestJS
+globs: ["**/*.entity.ts", "**/*.repository.ts", "**/*migration*.ts", "**/database/**"]
+alwaysApply: true
+---
+
+# Database and ORM Best Practices for NestJS
+
+## Entity Design
+- **Use clear, descriptive entity names** that reflect business domain
+- **Define proper relationships** between entities
+- **Use appropriate data types** for each field
+- **Implement proper indexing** for performance
+- **Use enums** for fixed value sets
+
+```typescript
+// Good: Well-designed entity
+@Entity('users')
+@Index(['email'], { unique: true })
+@Index(['createdAt'])
+export class User {
+  @PrimaryGeneratedColumn('uuid')
+  id: string;
+
+  @Column({ type: 'varchar', length: 255, unique: true })
+  email: string;
+
+  @Column({ type: 'varchar', length: 100 })
+  firstName: string;
+
+  @Column({ type: 'varchar', length: 100 })
+  lastName: string;
+
+  @Column({ type: 'enum', enum: UserStatus, default: UserStatus.ACTIVE })
+  status: UserStatus;
+
+  @Column({ type: 'timestamp', default: () => 'CURRENT_TIMESTAMP' })
+  createdAt: Date;
+
+  @Column({ type: 'timestamp', default: () => 'CURRENT_TIMESTAMP', onUpdate: 'CURRENT_TIMESTAMP' })
+  updatedAt: Date;
+
+  // Relationships
+  @OneToMany(() => Post, post => post.author)
+  posts: Post[];
+
+  @OneToOne(() => Profile, profile => profile.user)
+  profile: Profile;
+}
+```
+
+## Repository Pattern
+- **Create custom repositories** for complex queries
+- **Use base repository** for common operations
+- **Implement proper error handling** in repositories
+- **Use transactions** for multi-table operations
+- **Cache frequently accessed data**
+
+```typescript
+// Good: Custom repository implementation
+@Injectable()
+export class UserRepository extends Repository<User> {
+  constructor(
+    @InjectRepository(User)
+    private readonly repository: Repository<User>,
+    @Inject(CACHE_MANAGER)
+    private readonly cacheManager: Cache,
+  ) {
+    super(repository.target, repository.manager, repository.queryRunner);
+  }
+
+  async findByEmail(email: string): Promise<User | null> {
+    const cacheKey = `user:email:${email}`;
+    let user = await this.cacheManager.get<User>(cacheKey);
+
+    if (!user) {
+      user = await this.repository.findOne({ 
+        where: { email },
+        relations: ['profile']
+      });
+      
+      if (user) {
+        await this.cacheManager.set(cacheKey, user, 300); // 5 minutes
+      }
+    }
+
+    return user;
+  }
+
+  async findActiveUsers(): Promise<User[]> {
+    return this.repository.find({
+      where: { status: UserStatus.ACTIVE },
+      order: { createdAt: 'DESC' },
+    });
+  }
+
+  async findUsersWithPagination(page: number, limit: number): Promise<[User[], number]> {
+    return this.repository.findAndCount({
+      skip: (page - 1) * limit,
+      take: limit,
+      order: { createdAt: 'DESC' },
+    });
+  }
+}
+```
+
+## Migration Management
+- **Use descriptive migration names** that explain the change
+- **Write reversible migrations** when possible
+- **Test migrations** on development data
+- **Use proper data types** in migrations
+- **Handle data migration** carefully
+
+```typescript
+// Good: Well-structured migration
+export class AddUserProfileTable1234567890 implements MigrationInterface {
+  name = 'AddUserProfileTable1234567890';
+
+  public async up(queryRunner: QueryRunner): Promise<void> {
+    await queryRunner.createTable(
+      new Table({
+        name: 'user_profiles',
+        columns: [
+          {
+            name: 'id',
+            type: 'uuid',
+            isPrimary: true,
+            generationStrategy: 'uuid',
+            default: 'uuid_generate_v4()',
+          },
+          {
+            name: 'userId',
+            type: 'uuid',
+            isNullable: false,
+          },
+          {
+            name: 'bio',
+            type: 'text',
+            isNullable: true,
+          },
+          {
+            name: 'avatar',
+            type: 'varchar',
+            length: '500',
+            isNullable: true,
+          },
+          {
+            name: 'createdAt',
+            type: 'timestamp',
+            default: 'CURRENT_TIMESTAMP',
+          },
+          {
+            name: 'updatedAt',
+            type: 'timestamp',
+            default: 'CURRENT_TIMESTAMP',
+            onUpdate: 'CURRENT_TIMESTAMP',
+          },
+        ],
+        foreignKeys: [
+          {
+            columnNames: ['userId'],
+            referencedTableName: 'users',
+            referencedColumnNames: ['id'],
+            onDelete: 'CASCADE',
+          },
+        ],
+        indices: [
+          {
+            name: 'IDX_USER_PROFILE_USER_ID',
+            columnNames: ['userId'],
+            isUnique: true,
+          },
+        ],
+      }),
+      true,
+    );
+  }
+
+  public async down(queryRunner: QueryRunner): Promise<void> {
+    await queryRunner.dropTable('user_profiles');
+  }
+}
+```
+
+## Query Optimization
+- **Use select statements** to limit returned fields
+- **Implement proper joins** to avoid N+1 queries
+- **Use query builder** for complex queries
+- **Implement pagination** for large datasets
+- **Use database indexes** strategically
+
+```typescript
+// Good: Optimized query with query builder
+@Injectable()
+export class UserService {
+  constructor(
+    @InjectRepository(User)
+    private readonly userRepository: Repository<User>,
+  ) {}
+
+  async findUsersWithPosts(): Promise<User[]> {
+    return this.userRepository
+      .createQueryBuilder('user')
+      .leftJoinAndSelect('user.posts', 'post')
+      .leftJoinAndSelect('user.profile', 'profile')
+      .where('user.status = :status', { status: UserStatus.ACTIVE })
+      .orderBy('user.createdAt', 'DESC')
+      .getMany();
+  }
+
+  async findUsersWithPostCount(): Promise<Array<User & { postCount: number }>> {
+    return this.userRepository
+      .createQueryBuilder('user')
+      .leftJoin('user.posts', 'post')
+      .select([
+        'user.id',
+        'user.email',
+        'user.firstName',
+        'user.lastName',
+        'COUNT(post.id) as postCount'
+      ])
+      .groupBy('user.id')
+      .getRawMany();
+  }
+}
+```
+
+## Transaction Management
+- **Use transactions** for multi-table operations
+- **Handle transaction rollbacks** properly
+- **Use query runner** for complex transactions
+- **Implement proper error handling** in transactions
+
+```typescript
+// Good: Transaction implementation
+@Injectable()
+export class UserService {
+  constructor(
+    @InjectRepository(User)
+    private readonly userRepository: Repository<User>,
+    @InjectRepository(Profile)
+    private readonly profileRepository: Repository<Profile>,
+    private readonly dataSource: DataSource,
+  ) {}
+
+  async createUserWithProfile(userData: CreateUserDto): Promise<User> {
+    const queryRunner = this.dataSource.createQueryRunner();
+    await queryRunner.connect();
+    await queryRunner.startTransaction();
+
+    try {
+      // Create user
+      const user = queryRunner.manager.create(User, userData);
+      const savedUser = await queryRunner.manager.save(User, user);
+
+      // Create profile
+      const profile = queryRunner.manager.create(Profile, {
+        userId: savedUser.id,
+        bio: '',
+      });
+      await queryRunner.manager.save(Profile, profile);
+
+      await queryRunner.commitTransaction();
+      return savedUser;
+    } catch (error) {
+      await queryRunner.rollbackTransaction();
+      throw error;
+    } finally {
+      await queryRunner.release();
+    }
+  }
+}
+```
+
+## Data Validation
+- **Use entity validation** with class-validator
+- **Implement database constraints** for data integrity
+- **Use proper data types** for each field
+- **Validate relationships** before saving
+- **Handle validation errors** gracefully
+
+```typescript
+// Good: Entity with validation
+@Entity('users')
+export class User {
+  @PrimaryGeneratedColumn('uuid')
+  id: string;
+
+  @Column({ type: 'varchar', length: 255, unique: true })
+  @IsEmail()
+  @IsNotEmpty()
+  email: string;
+
+  @Column({ type: 'varchar', length: 100 })
+  @IsString()
+  @Length(2, 100)
+  @IsNotEmpty()
+  firstName: string;
+
+  @Column({ type: 'varchar', length: 100 })
+  @IsString()
+  @Length(2, 100)
+  @IsNotEmpty()
+  lastName: string;
+
+  @Column({ type: 'varchar', length: 255 })
+  @IsString()
+  @MinLength(8)
+  @Matches(/^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*?&])[A-Za-z\d@$!%*?&]/, {
+    message: 'Password must contain uppercase, lowercase, number and special character'
+  })
+  password: string;
+}
+```
+
+## Connection Management
+- **Configure connection pooling** appropriately
+- **Use connection health checks**
+- **Implement proper connection cleanup**
+- **Monitor connection usage**
+- **Use read replicas** for read-heavy operations
+
+```typescript
+// Good: Database configuration with connection pooling
+@Module({
+  imports: [
+    TypeOrmModule.forRoot({
+      type: 'postgres',
+      host: process.env.DB_HOST,
+      port: parseInt(process.env.DB_PORT),
+      username: process.env.DB_USERNAME,
+      password: process.env.DB_PASSWORD,
+      database: process.env.DB_NAME,
+      entities: [User, Profile, Post],
+      synchronize: false,
+      logging: process.env.NODE_ENV === 'development',
+      poolSize: 10,
+      maxQueryExecutionTime: 1000,
+      connectTimeoutMS: 10000,
+      acquireTimeoutMS: 10000,
+      timeout: 20000,
+      extra: {
+        ssl: process.env.NODE_ENV === 'production' ? { rejectUnauthorized: false } : false,
+      },
+    }),
+  ],
+})
+export class DatabaseModule {}
+```
+
+## Caching Strategy
+- **Implement query result caching** for frequently accessed data
+- **Use cache invalidation** strategies
+- **Cache expensive computations**
+- **Use distributed caching** for scalability
+- **Monitor cache performance**
+
+```typescript
+// Good: Caching implementation
+@Injectable()
+export class UserService {
+  constructor(
+    @InjectRepository(User)
+    private readonly userRepository: Repository<User>,
+    @Inject(CACHE_MANAGER)
+    private readonly cacheManager: Cache,
+  ) {}
+
+  @Cacheable('users', 300) // Cache for 5 minutes
+  async findAll(): Promise<User[]> {
+    return this.userRepository.find({
+      where: { status: UserStatus.ACTIVE },
+      order: { createdAt: 'DESC' },
+    });
+  }
+
+  async findById(id: string): Promise<User | null> {
+    const cacheKey = `user:${id}`;
+    let user = await this.cacheManager.get<User>(cacheKey);
+
+    if (!user) {
+      user = await this.userRepository.findOne({ 
+        where: { id },
+        relations: ['profile']
+      });
+      
+      if (user) {
+        await this.cacheManager.set(cacheKey, user, 300);
+      }
+    }
+
+    return user;
+  }
+
+  async updateUser(id: string, updateData: Partial<User>): Promise<User> {
+    const user = await this.userRepository.save({ id, ...updateData });
+    
+    // Invalidate related caches
+    await this.cacheManager.del(`user:${id}`);
+    await this.cacheManager.del('users');
+    
+    return user;
+  }
+}
+```

@@ -1,0 +1,474 @@
+---
+description: API Design and REST Standards for NestJS
+globs: ["**/*.controller.ts", "**/*.dto.ts", "**/api/**"]
+alwaysApply: true
+---
+
+# API Design and REST Standards for NestJS
+
+## RESTful API Design
+- **Follow REST conventions** for resource-based URLs
+- **Use proper HTTP methods** (GET, POST, PUT, PATCH, DELETE)
+- **Implement consistent URL patterns** across the API
+- **Use plural nouns** for resource names
+- **Version your APIs** (e.g., /api/v1/users)
+
+```typescript
+// Good: RESTful controller design
+@Controller('api/v1/users')
+@ApiTags('Users')
+export class UserController {
+  constructor(private readonly userService: UserService) {}
+
+  @Get()
+  @ApiOperation({ summary: 'Get all users' })
+  async findAll(@Query() query: FindUsersQueryDto): Promise<UserListResponseDto> {
+    return this.userService.findAll(query);
+  }
+
+  @Get(':id')
+  @ApiOperation({ summary: 'Get user by ID' })
+  async findOne(@Param('id', ParseUUIDPipe) id: string): Promise<UserDto> {
+    return this.userService.findOne(id);
+  }
+
+  @Post()
+  @HttpCode(HttpStatus.CREATED)
+  @ApiOperation({ summary: 'Create a new user' })
+  async create(@Body() createUserDto: CreateUserDto): Promise<UserDto> {
+    return this.userService.create(createUserDto);
+  }
+
+  @Put(':id')
+  @ApiOperation({ summary: 'Update user completely' })
+  async update(
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body() updateUserDto: UpdateUserDto
+  ): Promise<UserDto> {
+    return this.userService.update(id, updateUserDto);
+  }
+
+  @Patch(':id')
+  @ApiOperation({ summary: 'Partially update user' })
+  async partialUpdate(
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body() partialUpdateDto: PartialUpdateUserDto
+  ): Promise<UserDto> {
+    return this.userService.partialUpdate(id, partialUpdateDto);
+  }
+
+  @Delete(':id')
+  @HttpCode(HttpStatus.NO_CONTENT)
+  @ApiOperation({ summary: 'Delete user' })
+  async remove(@Param('id', ParseUUIDPipe) id: string): Promise<void> {
+    return this.userService.remove(id);
+  }
+}
+```
+
+## HTTP Status Codes
+- **Use appropriate status codes** for different scenarios
+- **Be consistent** with status code usage
+- **Document status codes** in API documentation
+- **Handle error cases** with proper status codes
+
+```typescript
+// Good: Proper HTTP status code usage
+@Controller('api/v1/users')
+export class UserController {
+  @Post()
+  @HttpCode(HttpStatus.CREATED) // 201 for successful creation
+  async create(@Body() createUserDto: CreateUserDto): Promise<UserDto> {
+    return this.userService.create(createUserDto);
+  }
+
+  @Get(':id')
+  @HttpCode(HttpStatus.OK) // 200 for successful retrieval
+  async findOne(@Param('id', ParseUUIDPipe) id: string): Promise<UserDto> {
+    return this.userService.findOne(id);
+  }
+
+  @Put(':id')
+  @HttpCode(HttpStatus.OK) // 200 for successful update
+  async update(
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body() updateUserDto: UpdateUserDto
+  ): Promise<UserDto> {
+    return this.userService.update(id, updateUserDto);
+  }
+
+  @Delete(':id')
+  @HttpCode(HttpStatus.NO_CONTENT) // 204 for successful deletion
+  async remove(@Param('id', ParseUUIDPipe) id: string): Promise<void> {
+    return this.userService.remove(id);
+  }
+}
+```
+
+## Request/Response DTOs
+- **Use separate DTOs** for requests and responses
+- **Implement proper validation** with class-validator
+- **Use consistent naming** conventions
+- **Document DTOs** with Swagger decorators
+
+```typescript
+// Good: Request DTO with validation
+export class CreateUserDto {
+  @ApiProperty({
+    description: 'User email address',
+    example: 'user@example.com'
+  })
+  @IsEmail({}, { message: 'Please provide a valid email address' })
+  @IsNotEmpty({ message: 'Email is required' })
+  email: string;
+
+  @ApiProperty({
+    description: 'User password',
+    example: 'SecurePassword123!'
+  })
+  @IsString()
+  @MinLength(8, { message: 'Password must be at least 8 characters' })
+  @Matches(/^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*?&])[A-Za-z\d@$!%*?&]/, {
+    message: 'Password must contain uppercase, lowercase, number and special character'
+  })
+  password: string;
+
+  @ApiProperty({
+    description: 'User first name',
+    example: 'John'
+  })
+  @IsString()
+  @Length(2, 50, { message: 'First name must be between 2 and 50 characters' })
+  @IsNotEmpty({ message: 'First name is required' })
+  firstName: string;
+
+  @ApiProperty({
+    description: 'User last name',
+    example: 'Doe'
+  })
+  @IsString()
+  @Length(2, 50, { message: 'Last name must be between 2 and 50 characters' })
+  @IsNotEmpty({ message: 'Last name is required' })
+  lastName: string;
+}
+
+// Good: Response DTO
+export class UserDto {
+  @ApiProperty({
+    description: 'User ID',
+    example: '123e4567-e89b-12d3-a456-426614174000'
+  })
+  id: string;
+
+  @ApiProperty({
+    description: 'User email address',
+    example: 'user@example.com'
+  })
+  email: string;
+
+  @ApiProperty({
+    description: 'User first name',
+    example: 'John'
+  })
+  firstName: string;
+
+  @ApiProperty({
+    description: 'User last name',
+    example: 'Doe'
+  })
+  lastName: string;
+
+  @ApiProperty({
+    description: 'User creation timestamp',
+    example: '2023-01-01T00:00:00.000Z'
+  })
+  createdAt: Date;
+
+  @ApiProperty({
+    description: 'User last update timestamp',
+    example: '2023-01-01T00:00:00.000Z'
+  })
+  updatedAt: Date;
+}
+```
+
+## Query Parameters and Filtering
+- **Use query parameters** for filtering, sorting, and pagination
+- **Implement consistent query patterns** across endpoints
+- **Validate query parameters** with DTOs
+- **Provide default values** for optional parameters
+
+```typescript
+// Good: Query DTO for filtering and pagination
+export class FindUsersQueryDto {
+  @ApiPropertyOptional({
+    description: 'Page number',
+    example: 1,
+    minimum: 1
+  })
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt({ message: 'Page must be an integer' })
+  @Min(1, { message: 'Page must be at least 1' })
+  page?: number = 1;
+
+  @ApiPropertyOptional({
+    description: 'Number of items per page',
+    example: 10,
+    minimum: 1,
+    maximum: 100
+  })
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt({ message: 'Limit must be an integer' })
+  @Min(1, { message: 'Limit must be at least 1' })
+  @Max(100, { message: 'Limit must not exceed 100' })
+  limit?: number = 10;
+
+  @ApiPropertyOptional({
+    description: 'Search term for name or email',
+    example: 'john'
+  })
+  @IsOptional()
+  @IsString()
+  @Length(1, 100, { message: 'Search term must be between 1 and 100 characters' })
+  search?: string;
+
+  @ApiPropertyOptional({
+    description: 'Sort field',
+    example: 'createdAt',
+    enum: ['createdAt', 'email', 'firstName', 'lastName']
+  })
+  @IsOptional()
+  @IsString()
+  @IsIn(['createdAt', 'email', 'firstName', 'lastName'], {
+    message: 'Sort field must be one of: createdAt, email, firstName, lastName'
+  })
+  sortBy?: string = 'createdAt';
+
+  @ApiPropertyOptional({
+    description: 'Sort order',
+    example: 'DESC',
+    enum: ['ASC', 'DESC']
+  })
+  @IsOptional()
+  @IsString()
+  @IsIn(['ASC', 'DESC'], { message: 'Sort order must be ASC or DESC' })
+  sortOrder?: 'ASC' | 'DESC' = 'DESC';
+}
+
+// Good: Response DTO for paginated results
+export class UserListResponseDto {
+  @ApiProperty({
+    description: 'Array of users',
+    type: [UserDto]
+  })
+  data: UserDto[];
+
+  @ApiProperty({
+    description: 'Pagination metadata',
+    type: PaginationMetaDto
+  })
+  meta: PaginationMetaDto;
+}
+
+export class PaginationMetaDto {
+  @ApiProperty({
+    description: 'Current page number',
+    example: 1
+  })
+  page: number;
+
+  @ApiProperty({
+    description: 'Number of items per page',
+    example: 10
+  })
+  limit: number;
+
+  @ApiProperty({
+    description: 'Total number of items',
+    example: 100
+  })
+  total: number;
+
+  @ApiProperty({
+    description: 'Total number of pages',
+    example: 10
+  })
+  totalPages: number;
+
+  @ApiProperty({
+    description: 'Whether there is a next page',
+    example: true
+  })
+  hasNext: boolean;
+
+  @ApiProperty({
+    description: 'Whether there is a previous page',
+    example: false
+  })
+  hasPrev: boolean;
+}
+```
+
+## Error Handling
+- **Use consistent error response format**
+- **Include proper error codes** and messages
+- **Handle validation errors** gracefully
+- **Log errors** for debugging
+
+```typescript
+// Good: Global error response format
+export class ErrorResponseDto {
+  @ApiProperty({
+    description: 'HTTP status code',
+    example: 400
+  })
+  statusCode: number;
+
+  @ApiProperty({
+    description: 'Error message',
+    example: 'Validation failed'
+  })
+  message: string | string[];
+
+  @ApiProperty({
+    description: 'Error timestamp',
+    example: '2023-01-01T00:00:00.000Z'
+  })
+  timestamp: string;
+
+  @ApiProperty({
+    description: 'Request path',
+    example: '/api/v1/users'
+  })
+  path: string;
+
+  @ApiPropertyOptional({
+    description: 'Additional error details',
+    example: { field: 'email', value: 'invalid-email' }
+  })
+  details?: any;
+}
+
+// Good: Custom exception filter
+@Catch()
+export class GlobalExceptionFilter implements ExceptionFilter {
+  private readonly logger = new Logger(GlobalExceptionFilter.name);
+
+  catch(exception: unknown, host: ArgumentsHost) {
+    const ctx = host.switchToHttp();
+    const response = ctx.getResponse();
+    const request = ctx.getRequest();
+
+    let status = HttpStatus.INTERNAL_SERVER_ERROR;
+    let message = 'Internal server error';
+
+    if (exception instanceof HttpException) {
+      status = exception.getStatus();
+      const exceptionResponse = exception.getResponse();
+      message = typeof exceptionResponse === 'string' 
+        ? exceptionResponse 
+        : (exceptionResponse as any).message;
+    }
+
+    // Log the error
+    this.logger.error(`Error in ${request.url}:`, exception);
+
+    // Send error response
+    response.status(status).json({
+      statusCode: status,
+      message,
+      timestamp: new Date().toISOString(),
+      path: request.url,
+    });
+  }
+}
+```
+
+## API Versioning
+- **Use URL versioning** for major API changes
+- **Maintain backward compatibility** when possible
+- **Document version differences** clearly
+- **Deprecate old versions** gracefully
+
+```typescript
+// Good: API versioning
+@Controller('api/v1/users')
+@ApiTags('Users v1')
+export class UserControllerV1 {
+  // v1 implementation
+}
+
+@Controller('api/v2/users')
+@ApiTags('Users v2')
+export class UserControllerV2 {
+  // v2 implementation with new features
+}
+```
+
+## Authentication and Authorization
+- **Use JWT tokens** for stateless authentication
+- **Implement role-based access control**
+- **Protect sensitive endpoints** with guards
+- **Document authentication requirements**
+
+```typescript
+// Good: Protected endpoint
+@Controller('api/v1/users')
+@UseGuards(JwtAuthGuard)
+export class UserController {
+  @Get()
+  @Roles(Role.ADMIN, Role.MODERATOR)
+  @UseGuards(RolesGuard)
+  async findAll(): Promise<UserDto[]> {
+    return this.userService.findAll();
+  }
+
+  @Get(':id')
+  @Public() // Public endpoint
+  async findOne(@Param('id', ParseUUIDPipe) id: string): Promise<UserDto> {
+    return this.userService.findOne(id);
+  }
+}
+```
+
+## API Documentation
+- **Use Swagger/OpenAPI** for comprehensive documentation
+- **Document all endpoints** with descriptions and examples
+- **Include request/response schemas**
+- **Document authentication requirements**
+- **Provide usage examples**
+
+```typescript
+// Good: Comprehensive API documentation
+@ApiTags('Users')
+@Controller('api/v1/users')
+export class UserController {
+  @Post()
+  @HttpCode(HttpStatus.CREATED)
+  @ApiOperation({ 
+    summary: 'Create a new user',
+    description: 'Creates a new user account with the provided information'
+  })
+  @ApiResponse({ 
+    status: 201, 
+    description: 'User created successfully',
+    type: UserDto
+  })
+  @ApiResponse({ 
+    status: 400, 
+    description: 'Invalid input data',
+    type: ErrorResponseDto
+  })
+  @ApiResponse({ 
+    status: 409, 
+    description: 'Email already exists',
+    type: ErrorResponseDto
+  })
+  @ApiBody({ type: CreateUserDto })
+  async create(@Body() createUserDto: CreateUserDto): Promise<UserDto> {
+    return this.userService.create(createUserDto);
+  }
+}
+```

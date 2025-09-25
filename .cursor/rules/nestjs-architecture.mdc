@@ -1,0 +1,99 @@
+---
+description: NestJS Architecture and Design Patterns
+globs: ["**/*.controller.ts", "**/*.service.ts", "**/*.module.ts", "**/*.guard.ts", "**/*.interceptor.ts", "**/*.decorator.ts", "**/*.middleware.ts"]
+alwaysApply: true
+---
+
+# NestJS Architecture and Design Patterns
+
+## Core Principles
+- Follow the **Single Responsibility Principle** - each module, service, and controller should have one clear purpose
+- Use **Dependency Injection** extensively - avoid manual instantiation of dependencies
+- Implement **Separation of Concerns** - keep business logic in services, not controllers
+- Follow **NestJS conventions** for file naming and structure
+
+## Module Structure
+```typescript
+// Feature modules should be self-contained
+@Module({
+  imports: [TypeOrmModule.forFeature([Entity])],
+  controllers: [FeatureController],
+  providers: [FeatureService, FeatureRepository],
+  exports: [FeatureService], // Only export what other modules need
+})
+export class FeatureModule {}
+```
+
+## Controller Guidelines
+- Controllers should be **thin** - delegate business logic to services
+- Use **DTOs** for request/response validation
+- Implement proper **HTTP status codes**
+- Use **decorators** for validation, authentication, and documentation
+- Keep controllers focused on HTTP concerns only
+
+```typescript
+@Controller('api/v1/features')
+@ApiTags('Features')
+export class FeatureController {
+  constructor(private readonly featureService: FeatureService) {}
+
+  @Post()
+  @HttpCode(HttpStatus.CREATED)
+  @ApiOperation({ summary: 'Create a new feature' })
+  @ApiResponse({ status: 201, description: 'Feature created successfully' })
+  async create(@Body() createFeatureDto: CreateFeatureDto): Promise<FeatureDto> {
+    return this.featureService.create(createFeatureDto);
+  }
+}
+```
+
+## Service Layer
+- Services contain **business logic** and **data access**
+- Use **repository pattern** for data access
+- Implement **error handling** with custom exceptions
+- Keep services **testable** and **pure** when possible
+- Use **transactions** for complex operations
+
+```typescript
+@Injectable()
+export class FeatureService {
+  constructor(
+    private readonly featureRepository: FeatureRepository,
+    private readonly logger: Logger,
+  ) {}
+
+  async create(createFeatureDto: CreateFeatureDto): Promise<Feature> {
+    try {
+      const feature = this.featureRepository.create(createFeatureDto);
+      return await this.featureRepository.save(feature);
+    } catch (error) {
+      this.logger.error('Failed to create feature', error);
+      throw new InternalServerErrorException('Failed to create feature');
+    }
+  }
+}
+```
+
+## Dependency Injection Best Practices
+- Use **constructor injection** for required dependencies
+- Use **@Optional()** for optional dependencies
+- Use **@Inject()** for custom tokens
+- Avoid **circular dependencies** - use forwardRef() if necessary
+
+## Error Handling
+- Use **NestJS built-in exceptions** (BadRequestException, NotFoundException, etc.)
+- Create **custom exception classes** for domain-specific errors
+- Implement **global exception filters** for consistent error responses
+- Use **validation pipes** for input validation
+
+## Guards and Interceptors
+- Use **Guards** for authentication and authorization
+- Use **Interceptors** for logging, caching, and response transformation
+- Keep guards and interceptors **focused** and **reusable**
+- Use **decorators** to apply guards and interceptors selectively
+
+## Configuration Management
+- Use **ConfigModule** for environment configuration
+- Use **validation schemas** for configuration validation
+- Keep sensitive data in **environment variables**
+- Use **different configurations** for different environments

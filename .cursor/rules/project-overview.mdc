@@ -1,0 +1,182 @@
+---
+description: Project Overview and Development Guidelines
+globs: ["**/*"]
+alwaysApply: true
+---
+
+# Project Overview and Development Guidelines
+
+## Project Structure
+This NestJS TypeScript project follows a modular architecture with clear separation of concerns:
+
+```
+src/
+├── common/           # Shared utilities, decorators, guards, interceptors
+├── config/           # Configuration files and environment setup
+├── modules/          # Feature modules (users, auth, etc.)
+├── shared/           # Shared types, constants, and utilities
+└── main.ts           # Application entry point
+```
+
+## Development Principles
+- **Follow NestJS conventions** for file naming and structure
+- **Use TypeScript strict mode** for better type safety
+- **Implement proper error handling** with custom exceptions
+- **Write comprehensive tests** for all functionality
+- **Document all public APIs** with JSDoc comments
+- **Use dependency injection** throughout the application
+- **Follow security best practices** for all endpoints
+- **Implement proper logging** and monitoring
+- **Use consistent code formatting** with ESLint and Prettier
+
+## Key Technologies
+- **NestJS** - Progressive Node.js framework
+- **TypeScript** - Type-safe JavaScript
+- **TypeORM** - Object-relational mapping
+- **PostgreSQL** - Primary database
+- **Redis** - Caching and session storage
+- **JWT** - Authentication tokens
+- **Swagger** - API documentation
+- **Jest** - Testing framework
+- **Docker** - Containerization
+
+## Code Quality Standards
+- **ESLint** with strict TypeScript rules
+- **Prettier** for consistent code formatting
+- **Husky** for pre-commit hooks
+- **Lint-staged** for staged file linting
+- **TypeScript strict mode** enabled
+- **Comprehensive test coverage** (80%+)
+
+## Security Requirements
+- **Input validation** with class-validator
+- **Authentication** with JWT tokens
+- **Authorization** with role-based access control
+- **Rate limiting** for API endpoints
+- **CORS** configuration for cross-origin requests
+- **Security headers** with Helmet.js
+- **Password hashing** with bcrypt
+- **SQL injection prevention** with parameterized queries
+
+## Performance Guidelines
+- **Database indexing** for frequently queried columns
+- **Redis caching** for frequently accessed data
+- **Connection pooling** for database connections
+- **Response compression** with gzip
+- **Memory management** and garbage collection monitoring
+- **Query optimization** to avoid N+1 problems
+
+## Testing Strategy
+- **Unit tests** for individual components
+- **Integration tests** for module interactions
+- **E2E tests** for complete user workflows
+- **Mock external dependencies** appropriately
+- **Test both success and error cases**
+- **Use descriptive test names** and organization
+
+## API Design Standards
+- **RESTful endpoints** with proper HTTP methods
+- **Consistent URL patterns** across the API
+- **Proper HTTP status codes** for all responses
+- **Request/Response DTOs** for type safety
+- **API versioning** for backward compatibility
+- **Comprehensive Swagger documentation**
+
+## Database Standards
+- **Entity relationships** properly defined
+- **Database migrations** for schema changes
+- **Repository pattern** for data access
+- **Transaction management** for complex operations
+- **Query optimization** and performance monitoring
+- **Data validation** at the database level
+
+## Deployment Guidelines
+- **Docker containerization** for consistent environments
+- **Environment-specific configurations**
+- **Health checks** for service monitoring
+- **Logging and monitoring** integration
+- **Security scanning** in CI/CD pipeline
+- **Automated testing** in deployment pipeline
+
+## Development Workflow
+1. **Create feature branch** from main
+2. **Write tests first** (TDD approach)
+3. **Implement functionality** following standards
+4. **Run linting and formatting** checks
+5. **Run all tests** and ensure they pass
+6. **Update documentation** as needed
+7. **Create pull request** with description
+8. **Code review** by team members
+9. **Merge to main** after approval
+
+## File Naming Conventions
+- **kebab-case** for file names (user.service.ts)
+- **PascalCase** for classes and interfaces
+- **camelCase** for variables and functions
+- **UPPER_SNAKE_CASE** for constants
+- **Descriptive names** that explain purpose
+
+## Import/Export Standards
+- **Absolute imports** using path mapping
+- **Grouped imports** by type (external, internal, relative)
+- **Named exports** for most cases
+- **Default exports** only for main module exports
+- **Barrel exports** for clean module interfaces
+
+## Error Handling
+- **Custom error classes** for domain-specific errors
+- **Global exception filters** for consistent error responses
+- **Proper error logging** with context
+- **User-friendly error messages** for client responses
+- **Error monitoring** and alerting
+
+## Logging Standards
+- **Structured logging** with consistent format
+- **Different log levels** (error, warn, info, debug)
+- **Contextual information** in all logs
+- **Security event logging** for monitoring
+- **Performance logging** for optimization
+
+## Monitoring and Observability
+- **Health check endpoints** for service monitoring
+- **Metrics collection** for performance tracking
+- **Distributed tracing** for request tracking
+- **Log aggregation** and analysis
+- **Alerting** for critical issues
+
+## Security Best Practices
+- **Input validation** and sanitization
+- **Authentication and authorization** for all endpoints
+- **Rate limiting** to prevent abuse
+- **CORS configuration** for cross-origin requests
+- **Security headers** implementation
+- **Secrets management** for sensitive data
+- **Regular security audits** and updates
+
+## Performance Optimization
+- **Database query optimization**
+- **Caching strategies** for frequently accessed data
+- **Connection pooling** for external services
+- **Memory management** and garbage collection
+- **Response compression** and optimization
+- **Monitoring and profiling** for bottlenecks
+
+## Documentation Requirements
+- **API documentation** with Swagger/OpenAPI
+- **Code documentation** with JSDoc comments
+- **README files** for setup and usage
+- **Architecture documentation** for system design
+- **Deployment guides** for different environments
+- **Troubleshooting guides** for common issues
+
+## Code Review Checklist
+- [ ] Code follows project standards and conventions
+- [ ] All tests pass and coverage is adequate
+- [ ] No linting or formatting errors
+- [ ] Security best practices are followed
+- [ ] Performance considerations are addressed
+- [ ] Documentation is updated as needed
+- [ ] Error handling is implemented properly
+- [ ] Logging is appropriate and informative
+- [ ] Database queries are optimized
+- [ ] API design follows RESTful principles

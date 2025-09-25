@@ -1,0 +1,252 @@
+---
+description: Testing Standards and Patterns for NestJS
+globs: ["**/*.spec.ts", "**/*.test.ts", "**/*.e2e-spec.ts"]
+alwaysApply: true
+---
+
+# Testing Standards and Patterns for NestJS
+
+## Testing Philosophy
+- **Test behavior, not implementation** - focus on what the code does, not how
+- **Write tests first** when possible (TDD approach)
+- **Maintain high test coverage** (aim for 80%+)
+- **Keep tests simple and readable** - tests are documentation
+- **Use descriptive test names** that explain the scenario
+
+## Test Structure (AAA Pattern)
+```typescript
+describe('UserService', () => {
+  describe('createUser', () => {
+    it('should create a new user with valid data', async () => {
+      // Arrange
+      const userData = { email: 'test@example.com', name: 'Test User' };
+      const expectedUser = { id: '1', ...userData };
+      jest.spyOn(userRepository, 'save').mockResolvedValue(expectedUser);
+
+      // Act
+      const result = await userService.createUser(userData);
+
+      // Assert
+      expect(result).toEqual(expectedUser);
+      expect(userRepository.save).toHaveBeenCalledWith(userData);
+    });
+  });
+});
+```
+
+## Unit Testing
+- **Test individual units** in isolation
+- **Mock all dependencies** using Jest mocks
+- **Use dependency injection** for easy mocking
+- **Test both success and error cases**
+- **Test edge cases and boundary conditions**
+
+```typescript
+describe('UserService', () => {
+  let service: UserService;
+  let repository: jest.Mocked<UserRepository>;
+
+  beforeEach(async () => {
+    const module: TestingModule = await Test.createTestingModule({
+      providers: [
+        UserService,
+        {
+          provide: UserRepository,
+          useValue: {
+            findById: jest.fn(),
+            save: jest.fn(),
+            delete: jest.fn(),
+          },
+        },
+      ],
+    }).compile();
+
+    service = module.get<UserService>(UserService);
+    repository = module.get(UserRepository);
+  });
+
+  describe('findById', () => {
+    it('should return user when found', async () => {
+      const userId = '1';
+      const expectedUser = { id: userId, name: 'Test User' };
+      repository.findById.mockResolvedValue(expectedUser);
+
+      const result = await service.findById(userId);
+
+      expect(result).toEqual(expectedUser);
+      expect(repository.findById).toHaveBeenCalledWith(userId);
+    });
+
+    it('should throw NotFoundException when user not found', async () => {
+      const userId = '999';
+      repository.findById.mockResolvedValue(null);
+
+      await expect(service.findById(userId)).rejects.toThrow(NotFoundException);
+    });
+  });
+});
+```
+
+## Integration Testing
+- **Test module interactions** without mocking internal dependencies
+- **Use in-memory database** for database tests
+- **Test API endpoints** with real HTTP requests
+- **Verify data persistence** and retrieval
+
+```typescript
+describe('UserController (Integration)', () => {
+  let app: INestApplication;
+  let userRepository: Repository<User>;
+
+  beforeEach(async () => {
+    const moduleFixture: TestingModule = await Test.createTestingModule({
+      imports: [
+        TypeOrmModule.forRoot({
+          type: 'sqlite',
+          database: ':memory:',
+          entities: [User],
+          synchronize: true,
+        }),
+        UserModule,
+      ],
+    }).compile();
+
+    app = moduleFixture.createNestApplication();
+    userRepository = moduleFixture.get('UserRepository');
+    await app.init();
+  });
+
+  it('/users (POST)', () => {
+    return request(app.getHttpServer())
+      .post('/users')
+      .send({ email: 'test@example.com', name: 'Test User' })
+      .expect(201)
+      .expect((res) => {
+        expect(res.body).toHaveProperty('id');
+        expect(res.body.email).toBe('test@example.com');
+      });
+  });
+});
+```
+
+## E2E Testing
+- **Test complete user workflows** from API to database
+- **Use test database** separate from development
+- **Test authentication and authorization**
+- **Verify API contracts** and response formats
+
+```typescript
+describe('User E2E', () => {
+  let app: INestApplication;
+
+  beforeAll(async () => {
+    const moduleFixture: TestingModule = await Test.createTestingModule({
+      imports: [AppModule],
+    }).compile();
+
+    app = moduleFixture.createNestApplication();
+    await app.init();
+  });
+
+  afterAll(async () => {
+    await app.close();
+  });
+
+  it('/users (GET)', () => {
+    return request(app.getHttpServer())
+      .get('/users')
+      .expect(200)
+      .expect((res) => {
+        expect(Array.isArray(res.body)).toBe(true);
+      });
+  });
+});
+```
+
+## Mocking Strategies
+- **Mock external services** (APIs, databases, file systems)
+- **Use Jest spies** for method call verification
+- **Mock time-dependent functions** for consistent testing
+- **Use factory functions** for test data creation
+
+```typescript
+// Good: Mock external service
+const mockEmailService = {
+  sendWelcomeEmail: jest.fn().mockResolvedValue(true),
+  sendPasswordReset: jest.fn().mockResolvedValue(true),
+};
+
+// Good: Factory function for test data
+const createTestUser = (overrides: Partial<User> = {}): User => ({
+  id: '1',
+  email: 'test@example.com',
+  name: 'Test User',
+  createdAt: new Date(),
+  ...overrides,
+});
+```
+
+## Test Data Management
+- **Use factories** for creating test data
+- **Clean up test data** after each test
+- **Use realistic test data** that reflects production
+- **Avoid hardcoded values** in tests
+
+```typescript
+// Good: Test data factory
+class UserTestFactory {
+  static create(overrides: Partial<User> = {}): User {
+    return {
+      id: faker.string.uuid(),
+      email: faker.internet.email(),
+      name: faker.person.fullName(),
+      createdAt: faker.date.past(),
+      ...overrides,
+    };
+  }
+
+  static createMany(count: number): User[] {
+    return Array.from({ length: count }, () => this.create());
+  }
+}
+```
+
+## Testing Async Operations
+- **Always await async operations** in tests
+- **Test both resolved and rejected promises**
+- **Use proper error assertions**
+- **Test timeout scenarios** when applicable
+
+```typescript
+describe('Async Operations', () => {
+  it('should handle async operations correctly', async () => {
+    const promise = service.asyncOperation();
+    
+    await expect(promise).resolves.toBeDefined();
+  });
+
+  it('should handle async errors', async () => {
+    jest.spyOn(service, 'asyncOperation').mockRejectedValue(new Error('Async error'));
+    
+    await expect(service.asyncOperation()).rejects.toThrow('Async error');
+  });
+});
+```
+
+## Performance Testing
+- **Test response times** for critical operations
+- **Test memory usage** for large datasets
+- **Test concurrent operations** and race conditions
+- **Use performance benchmarks** for optimization
+
+## Test Organization
+- **Group related tests** in describe blocks
+- **Use consistent naming** for test files
+- **Separate unit, integration, and e2e tests**
+- **Use test utilities** for common setup
+
+## Coverage Requirements
+- **Aim for 80%+ code coverage**
+- **Focus on critical business logic**
+- **Test error paths and edge cases**
+- **Use coverage reports** to identify gaps

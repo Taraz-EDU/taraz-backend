@@ -1,0 +1,179 @@
+---
+description: TypeScript Coding Standards and Best Practices
+globs: ["**/*.ts", "**/*.tsx"]
+alwaysApply: true
+---
+
+# TypeScript Coding Standards and Best Practices
+
+## Type Safety
+- **Always use strict TypeScript** - enable strict mode in tsconfig.json
+- **Avoid `any` type** - use proper typing or `unknown` when necessary
+- **Use type assertions sparingly** - prefer type guards and proper typing
+- **Define interfaces for all data structures** - avoid inline object types
+- **Use generic types** for reusable components and functions
+
+## Naming Conventions
+- **PascalCase** for classes, interfaces, enums, and type aliases
+- **camelCase** for variables, functions, and methods
+- **UPPER_SNAKE_CASE** for constants
+- **kebab-case** for file names (except for classes which use PascalCase)
+- **Prefix interfaces with I** only when necessary to avoid naming conflicts
+
+## Interface and Type Definitions
+```typescript
+// Good: Clear, descriptive interface
+interface UserProfile {
+  id: string;
+  email: string;
+  firstName: string;
+  lastName: string;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+// Good: Use type aliases for unions
+type Status = 'pending' | 'approved' | 'rejected';
+
+// Good: Generic interface
+interface ApiResponse<T> {
+  data: T;
+  message: string;
+  status: number;
+}
+```
+
+## Function and Method Standards
+- **Use arrow functions** for simple operations and callbacks
+- **Use function declarations** for main functions and methods
+- **Always specify return types** for public methods
+- **Use optional parameters** with `?` instead of `undefined` checks
+- **Use default parameters** instead of `||` operators
+
+```typescript
+// Good: Clear function signature
+async getUserById(id: string): Promise<UserProfile | null> {
+  return this.userRepository.findById(id);
+}
+
+// Good: Optional parameters with defaults
+function createUser(
+  email: string,
+  firstName: string,
+  lastName: string,
+  isActive: boolean = true
+): UserProfile {
+  // implementation
+}
+```
+
+## Error Handling
+- **Use custom error classes** that extend Error
+- **Always handle promises** - use try/catch or .catch()
+- **Use Result types** for operations that can fail
+- **Log errors appropriately** with context
+
+```typescript
+// Good: Custom error class
+export class UserNotFoundError extends Error {
+  constructor(userId: string) {
+    super(`User with ID ${userId} not found`);
+    this.name = 'UserNotFoundError';
+  }
+}
+
+// Good: Result type pattern
+type Result<T, E = Error> = 
+  | { success: true; data: T }
+  | { success: false; error: E };
+```
+
+## Async/Await Best Practices
+- **Prefer async/await** over Promises.then()
+- **Use Promise.all()** for parallel operations
+- **Use Promise.allSettled()** when you need all results
+- **Handle errors properly** in async functions
+
+```typescript
+// Good: Parallel execution
+async function getUsersAndRoles(): Promise<[User[], Role[]]> {
+  const [users, roles] = await Promise.all([
+    this.userService.findAll(),
+    this.roleService.findAll()
+  ]);
+  return [users, roles];
+}
+```
+
+## Class Design
+- **Use access modifiers** (private, protected, public)
+- **Prefer composition over inheritance**
+- **Use abstract classes** for shared behavior
+- **Implement interfaces** for contracts
+- **Use readonly for immutable properties**
+
+```typescript
+// Good: Proper class design
+export abstract class BaseService<T> {
+  protected readonly logger: Logger;
+  
+  constructor(logger: Logger) {
+    this.logger = logger;
+  }
+  
+  abstract create(data: Partial<T>): Promise<T>;
+  abstract findById(id: string): Promise<T | null>;
+}
+```
+
+## Import/Export Standards
+- **Use named exports** for most cases
+- **Use default exports** only for main module exports
+- **Group imports** by type (external, internal, relative)
+- **Use absolute imports** with path mapping
+- **Avoid barrel exports** in large codebases
+
+```typescript
+// Good: Organized imports
+import { Injectable, Logger } from '@nestjs/common';
+import { InjectRepository } from '@nestjs/typeorm';
+import { Repository } from 'typeorm';
+
+import { User } from '../entities/user.entity';
+import { CreateUserDto } from '../dto/create-user.dto';
+import { UserRepository } from '../repositories/user.repository';
+```
+
+## Code Organization
+- **One class per file** - keep files focused
+- **Use barrel exports** for clean imports
+- **Group related functionality** in modules
+- **Use consistent file structure** across the project
+- **Keep functions small** - single responsibility
+
+## Documentation
+- **Use JSDoc** for public APIs
+- **Document complex business logic**
+- **Include examples** in documentation
+- **Keep comments up to date**
+
+```typescript
+/**
+ * Creates a new user with the provided data
+ * @param userData - The user data to create
+ * @returns Promise resolving to the created user
+ * @throws {ValidationError} When user data is invalid
+ * @throws {DuplicateEmailError} When email already exists
+ * @example
+ * ```typescript
+ * const user = await userService.create({
+ *   email: 'user@example.com',
+ *   firstName: 'John',
+ *   lastName: 'Doe'
+ * });
+ * ```
+ */
+async create(userData: CreateUserDto): Promise<User> {
+  // implementation
+}
+```

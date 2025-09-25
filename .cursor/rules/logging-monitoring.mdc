@@ -1,0 +1,490 @@
+---
+description: Logging and Monitoring Standards for NestJS
+globs: ["**/*.ts", "**/main.ts", "**/app.module.ts"]
+alwaysApply: true
+---
+
+# Logging and Monitoring Standards for NestJS
+
+## Logging Strategy
+- **Use structured logging** with consistent format
+- **Implement different log levels** (error, warn, info, debug)
+- **Include contextual information** in logs
+- **Avoid logging sensitive data** (passwords, tokens, PII)
+- **Use correlation IDs** for request tracing
+
+```typescript
+// Good: Structured logging implementation
+@Injectable()
+export class UserService {
+  private readonly logger = new Logger(UserService.name);
+
+  async createUser(userData: CreateUserDto): Promise<User> {
+    const correlationId = this.generateCorrelationId();
+    
+    this.logger.log(`Creating user with email: ${userData.email}`, {
+      correlationId,
+      operation: 'createUser',
+      email: userData.email,
+    });
+
+    try {
+      const user = await this.userRepository.create(userData);
+      const savedUser = await this.userRepository.save(user);
+
+      this.logger.log(`User created successfully: ${savedUser.id}`, {
+        correlationId,
+        operation: 'createUser',
+        userId: savedUser.id,
+        email: savedUser.email,
+      });
+
+      return savedUser;
+    } catch (error) {
+      this.logger.error(`Failed to create user: ${error.message}`, {
+        correlationId,
+        operation: 'createUser',
+        email: userData.email,
+        error: error.message,
+        stack: error.stack,
+      });
+      throw error;
+    }
+  }
+
+  private generateCorrelationId(): string {
+    return `req_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+  }
+}
+```
+
+## Request/Response Logging
+- **Log all incoming requests** with relevant metadata
+- **Log response times** for performance monitoring
+- **Log HTTP status codes** for error tracking
+- **Use interceptors** for consistent logging
+
+```typescript
+// Good: Request/Response logging interceptor
+@Injectable()
+export class LoggingInterceptor implements NestInterceptor {
+  private readonly logger = new Logger(LoggingInterceptor.name);
+
+  intercept(context: ExecutionContext, next: CallHandler): Observable<any> {
+    const request = context.switchToHttp().getRequest();
+    const response = context.switchToHttp().getResponse();
+    const { method, url, ip, headers } = request;
+    const userAgent = headers['user-agent'] || '';
+    const correlationId = this.generateCorrelationId();
+
+    // Add correlation ID to request
+    request.correlationId = correlationId;
+
+    const startTime = Date.now();
+
+    this.logger.log(`Incoming request: ${method} ${url}`, {
+      correlationId,
+      method,
+      url,
+      ip,
+      userAgent,
+      timestamp: new Date().toISOString(),
+    });
+
+    return next.handle().pipe(
+      tap({
+        next: (data) => {
+          const duration = Date.now() - startTime;
+          this.logger.log(`Request completed: ${method} ${url}`, {
+            correlationId,
+            method,
+            url,
+            statusCode: response.statusCode,
+            duration: `${duration}ms`,
+            timestamp: new Date().toISOString(),
+          });
+        },
+        error: (error) => {
+          const duration = Date.now() - startTime;
+          this.logger.error(`Request failed: ${method} ${url}`, {
+            correlationId,
+            method,
+            url,
+            statusCode: error.status || 500,
+            duration: `${duration}ms`,
+            error: error.message,
+            timestamp: new Date().toISOString(),
+          });
+        },
+      }),
+    );
+  }
+
+  private generateCorrelationId(): string {
+    return `req_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+  }
+}
+```
+
+## Error Logging
+- **Log all errors** with full context
+- **Include stack traces** for debugging
+- **Log error frequency** for monitoring
+- **Implement error alerting** for critical issues
+
+```typescript
+// Good: Error logging with context
+@Injectable()
+export class ErrorLogger {
+  private readonly logger = new Logger(ErrorLogger.name);
+
+  logError(error: Error, context: any = {}): void {
+    this.logger.error(`Error occurred: ${error.message}`, {
+      error: {
+        name: error.name,
+        message: error.message,
+        stack: error.stack,
+      },
+      context,
+      timestamp: new Date().toISOString(),
+    });
+  }
+
+  logDatabaseError(error: Error, query: string, parameters: any[]): void {
+    this.logger.error(`Database error: ${error.message}`, {
+      error: {
+        name: error.name,
+        message: error.message,
+        stack: error.stack,
+      },
+      query,
+      parameters,
+      timestamp: new Date().toISOString(),
+    });
+  }
+
+  logValidationError(errors: ValidationError[]): void {
+    this.logger.warn(`Validation failed: ${errors.length} errors`, {
+      errors: errors.map(err => ({
+        field: err.property,
+        value: err.value,
+        constraints: err.constraints,
+      })),
+      timestamp: new Date().toISOString(),
+    });
+  }
+}
+```
+
+## Performance Monitoring
+- **Log slow operations** for optimization
+- **Monitor database query performance**
+- **Track memory usage** and garbage collection
+- **Log response times** for API endpoints
+
+```typescript
+// Good: Performance monitoring
+@Injectable()
+export class PerformanceMonitor {
+  private readonly logger = new Logger(PerformanceMonitor.name);
+  private readonly slowQueryThreshold = 1000; // 1 second
+
+  logSlowQuery(query: string, duration: number, parameters: any[]): void {
+    if (duration > this.slowQueryThreshold) {
+      this.logger.warn(`Slow query detected: ${duration}ms`, {
+        query,
+        duration: `${duration}ms`,
+        parameters,
+        threshold: `${this.slowQueryThreshold}ms`,
+        timestamp: new Date().toISOString(),
+      });
+    }
+  }
+
+  logSlowOperation(operation: string, duration: number, context: any = {}): void {
+    if (duration > 500) { // 500ms threshold
+      this.logger.warn(`Slow operation detected: ${operation}`, {
+        operation,
+        duration: `${duration}ms`,
+        context,
+        timestamp: new Date().toISOString(),
+      });
+    }
+  }
+
+  logMemoryUsage(): void {
+    const memUsage = process.memoryUsage();
+    this.logger.debug('Memory usage', {
+      rss: `${Math.round(memUsage.rss / 1024 / 1024)}MB`,
+      heapTotal: `${Math.round(memUsage.heapTotal / 1024 / 1024)}MB`,
+      heapUsed: `${Math.round(memUsage.heapUsed / 1024 / 1024)}MB`,
+      external: `${Math.round(memUsage.external / 1024 / 1024)}MB`,
+      timestamp: new Date().toISOString(),
+    });
+  }
+}
+```
+
+## Business Logic Logging
+- **Log important business events** for audit trails
+- **Track user actions** for security monitoring
+- **Log data changes** for compliance
+- **Monitor business metrics** through logs
+
+```typescript
+// Good: Business logic logging
+@Injectable()
+export class UserService {
+  private readonly logger = new Logger(UserService.name);
+
+  async createUser(userData: CreateUserDto): Promise<User> {
+    this.logger.log('User creation initiated', {
+      operation: 'user_creation',
+      email: userData.email,
+      timestamp: new Date().toISOString(),
+    });
+
+    const user = await this.userRepository.create(userData);
+    const savedUser = await this.userRepository.save(user);
+
+    this.logger.log('User created successfully', {
+      operation: 'user_creation_success',
+      userId: savedUser.id,
+      email: savedUser.email,
+      timestamp: new Date().toISOString(),
+    });
+
+    return savedUser;
+  }
+
+  async updateUser(id: string, updateData: UpdateUserDto): Promise<User> {
+    const oldUser = await this.userRepository.findOne({ where: { id } });
+    
+    this.logger.log('User update initiated', {
+      operation: 'user_update',
+      userId: id,
+      changes: this.getChangedFields(oldUser, updateData),
+      timestamp: new Date().toISOString(),
+    });
+
+    const updatedUser = await this.userRepository.save({ id, ...updateData });
+
+    this.logger.log('User updated successfully', {
+      operation: 'user_update_success',
+      userId: id,
+      changes: this.getChangedFields(oldUser, updatedUser),
+      timestamp: new Date().toISOString(),
+    });
+
+    return updatedUser;
+  }
+
+  private getChangedFields(oldData: any, newData: any): string[] {
+    const changes: string[] = [];
+    for (const key in newData) {
+      if (oldData[key] !== newData[key]) {
+        changes.push(key);
+      }
+    }
+    return changes;
+  }
+}
+```
+
+## Security Logging
+- **Log authentication attempts** (successful and failed)
+- **Track authorization failures** for security monitoring
+- **Log suspicious activities** for threat detection
+- **Monitor API usage patterns** for abuse detection
+
+```typescript
+// Good: Security logging
+@Injectable()
+export class SecurityLogger {
+  private readonly logger = new Logger(SecurityLogger.name);
+
+  logLoginAttempt(email: string, success: boolean, ip: string, userAgent: string): void {
+    this.logger.log(`Login attempt: ${success ? 'SUCCESS' : 'FAILED'}`, {
+      operation: 'login_attempt',
+      email,
+      success,
+      ip,
+      userAgent,
+      timestamp: new Date().toISOString(),
+    });
+  }
+
+  logAuthorizationFailure(userId: string, resource: string, action: string, ip: string): void {
+    this.logger.warn('Authorization failure', {
+      operation: 'authorization_failure',
+      userId,
+      resource,
+      action,
+      ip,
+      timestamp: new Date().toISOString(),
+    });
+  }
+
+  logSuspiciousActivity(activity: string, details: any, ip: string): void {
+    this.logger.error('Suspicious activity detected', {
+      operation: 'suspicious_activity',
+      activity,
+      details,
+      ip,
+      timestamp: new Date().toISOString(),
+    });
+  }
+
+  logDataAccess(userId: string, resource: string, action: string, ip: string): void {
+    this.logger.log('Data access', {
+      operation: 'data_access',
+      userId,
+      resource,
+      action,
+      ip,
+      timestamp: new Date().toISOString(),
+    });
+  }
+}
+```
+
+## Log Configuration
+- **Configure log levels** based on environment
+- **Use different outputs** for different log types
+- **Implement log rotation** for file logs
+- **Configure log formatting** for consistency
+
+```typescript
+// Good: Log configuration
+import { WinstonModule } from 'nest-winston';
+import * as winston from 'winston';
+
+export const createLoggerConfig = () => {
+  const isProduction = process.env.NODE_ENV === 'production';
+  
+  return WinstonModule.createLogger({
+    level: isProduction ? 'info' : 'debug',
+    format: winston.format.combine(
+      winston.format.timestamp(),
+      winston.format.errors({ stack: true }),
+      winston.format.json(),
+    ),
+    transports: [
+      new winston.transports.Console({
+        format: winston.format.combine(
+          winston.format.colorize(),
+          winston.format.simple(),
+        ),
+      }),
+      new winston.transports.File({
+        filename: 'logs/error.log',
+        level: 'error',
+        maxsize: 5242880, // 5MB
+        maxFiles: 5,
+      }),
+      new winston.transports.File({
+        filename: 'logs/combined.log',
+        maxsize: 5242880, // 5MB
+        maxFiles: 5,
+      }),
+    ],
+  });
+};
+```
+
+## Health Checks
+- **Implement health check endpoints** for monitoring
+- **Check database connectivity** in health checks
+- **Monitor external service dependencies**
+- **Provide detailed health status** for debugging
+
+```typescript
+// Good: Health check implementation
+@Controller('health')
+export class HealthController {
+  constructor(
+    private readonly dataSource: DataSource,
+    private readonly cacheManager: Cache,
+  ) {}
+
+  @Get()
+  @ApiOperation({ summary: 'Health check' })
+  async check(): Promise<HealthCheckDto> {
+    const checks = await Promise.allSettled([
+      this.checkDatabase(),
+      this.checkCache(),
+      this.checkMemory(),
+    ]);
+
+    const isHealthy = checks.every(check => check.status === 'fulfilled');
+
+    return {
+      status: isHealthy ? 'healthy' : 'unhealthy',
+      timestamp: new Date().toISOString(),
+      checks: {
+        database: checks[0].status === 'fulfilled' ? 'ok' : 'error',
+        cache: checks[1].status === 'fulfilled' ? 'ok' : 'error',
+        memory: checks[2].status === 'fulfilled' ? 'ok' : 'error',
+      },
+    };
+  }
+
+  private async checkDatabase(): Promise<void> {
+    await this.dataSource.query('SELECT 1');
+  }
+
+  private async checkCache(): Promise<void> {
+    await this.cacheManager.get('health-check');
+  }
+
+  private async checkMemory(): Promise<void> {
+    const memUsage = process.memoryUsage();
+    if (memUsage.heapUsed > 500 * 1024 * 1024) { // 500MB
+      throw new Error('High memory usage detected');
+    }
+  }
+}
+```
+
+## Monitoring Integration
+- **Integrate with APM tools** (New Relic, DataDog, etc.)
+- **Send metrics to monitoring services**
+- **Implement custom metrics** for business KPIs
+- **Set up alerting** for critical issues
+
+```typescript
+// Good: Metrics collection
+@Injectable()
+export class MetricsCollector {
+  private readonly logger = new Logger(MetricsCollector.name);
+
+  recordApiCall(endpoint: string, method: string, statusCode: number, duration: number): void {
+    this.logger.log('API call recorded', {
+      metric: 'api_call',
+      endpoint,
+      method,
+      statusCode,
+      duration,
+      timestamp: new Date().toISOString(),
+    });
+  }
+
+  recordBusinessMetric(metric: string, value: number, tags: Record<string, string> = {}): void {
+    this.logger.log('Business metric recorded', {
+      metric,
+      value,
+      tags,
+      timestamp: new Date().toISOString(),
+    });
+  }
+
+  recordErrorRate(service: string, errorRate: number): void {
+    this.logger.log('Error rate recorded', {
+      metric: 'error_rate',
+      service,
+      errorRate,
+      timestamp: new Date().toISOString(),
+    });
+  }
+}
+```

@@ -1,0 +1,488 @@
+---
+description: Code Quality and Linting Standards for NestJS
+globs: ["**/*.ts", "**/*.js", "**/.eslintrc*", "**/.prettierrc*", "**/tsconfig.json"]
+alwaysApply: true
+---
+
+# Code Quality and Linting Standards for NestJS
+
+## ESLint Configuration
+- **Use strict ESLint rules** for TypeScript projects
+- **Enable NestJS-specific rules** for framework compliance
+- **Configure import/export rules** for better organization
+- **Use consistent formatting** across the codebase
+- **Enable security-focused rules** for vulnerability detection
+
+```json
+// Good: ESLint configuration
+{
+  "extends": [
+    "@nestjs/eslint-config",
+    "@typescript-eslint/recommended",
+    "@typescript-eslint/recommended-requiring-type-checking",
+    "prettier"
+  ],
+  "parser": "@typescript-eslint/parser",
+  "parserOptions": {
+    "project": "tsconfig.json",
+    "sourceType": "module"
+  },
+  "plugins": ["@typescript-eslint", "import", "security"],
+  "rules": {
+    // TypeScript specific rules
+    "@typescript-eslint/no-unused-vars": "error",
+    "@typescript-eslint/no-explicit-any": "warn",
+    "@typescript-eslint/explicit-function-return-type": "warn",
+    "@typescript-eslint/no-non-null-assertion": "error",
+    "@typescript-eslint/prefer-nullish-coalescing": "error",
+    "@typescript-eslint/prefer-optional-chain": "error",
+    
+    // Import/Export rules
+    "import/order": [
+      "error",
+      {
+        "groups": [
+          "builtin",
+          "external",
+          "internal",
+          "parent",
+          "sibling",
+          "index"
+        ],
+        "newlines-between": "always",
+        "alphabetize": {
+          "order": "asc",
+          "caseInsensitive": true
+        }
+      }
+    ],
+    "import/no-unresolved": "error",
+    "import/no-cycle": "error",
+    
+    // Security rules
+    "security/detect-object-injection": "warn",
+    "security/detect-non-literal-regexp": "warn",
+    "security/detect-unsafe-regex": "error",
+    
+    // General code quality
+    "no-console": "warn",
+    "no-debugger": "error",
+    "no-duplicate-imports": "error",
+    "no-unused-expressions": "error",
+    "prefer-const": "error",
+    "no-var": "error"
+  },
+  "overrides": [
+    {
+      "files": ["*.spec.ts", "*.test.ts"],
+      "rules": {
+        "@typescript-eslint/no-explicit-any": "off",
+        "no-console": "off"
+      }
+    }
+  ]
+}
+```
+
+## Prettier Configuration
+- **Use consistent formatting** across the project
+- **Configure line length** for readability
+- **Use consistent quote styles**
+- **Configure indentation** and spacing
+- **Use trailing commas** for better git diffs
+
+```json
+// Good: Prettier configuration
+{
+  "semi": true,
+  "trailingComma": "es5",
+  "singleQuote": true,
+  "printWidth": 80,
+  "tabWidth": 2,
+  "useTabs": false,
+  "bracketSpacing": true,
+  "bracketSameLine": false,
+  "arrowParens": "avoid",
+  "endOfLine": "lf",
+  "quoteProps": "as-needed",
+  "jsxSingleQuote": true,
+  "proseWrap": "preserve"
+}
+```
+
+## TypeScript Configuration
+- **Use strict TypeScript settings** for better type safety
+- **Enable path mapping** for cleaner imports
+- **Configure build settings** for production
+- **Use consistent compiler options**
+
+```json
+// Good: TypeScript configuration
+{
+  "compilerOptions": {
+    "module": "commonjs",
+    "declaration": true,
+    "removeComments": true,
+    "emitDecoratorMetadata": true,
+    "experimentalDecorators": true,
+    "allowSyntheticDefaultImports": true,
+    "target": "ES2020",
+    "sourceMap": true,
+    "outDir": "./dist",
+    "baseUrl": "./",
+    "incremental": true,
+    "skipLibCheck": true,
+    "strictNullChecks": true,
+    "noImplicitAny": true,
+    "strictBindCallApply": true,
+    "forceConsistentCasingInFileNames": true,
+    "noFallthroughCasesInSwitch": true,
+    "paths": {
+      "@/*": ["src/*"],
+      "@/common/*": ["src/common/*"],
+      "@/modules/*": ["src/modules/*"],
+      "@/config/*": ["src/config/*"]
+    }
+  },
+  "include": ["src/**/*"],
+  "exclude": ["node_modules", "dist", "test"]
+}
+```
+
+## Code Organization
+- **Use consistent file naming** conventions
+- **Organize code by feature** rather than by type
+- **Use barrel exports** for clean imports
+- **Implement proper separation of concerns**
+- **Use consistent directory structure**
+
+```typescript
+// Good: File organization structure
+src/
+├── common/
+│   ├── decorators/
+│   ├── filters/
+│   ├── guards/
+│   ├── interceptors/
+│   ├── pipes/
+│   └── utils/
+├── config/
+│   ├── database.config.ts
+│   ├── app.config.ts
+│   └── index.ts
+├── modules/
+│   ├── users/
+│   │   ├── dto/
+│   │   ├── entities/
+│   │   ├── controllers/
+│   │   ├── services/
+│   │   ├── repositories/
+│   │   └── users.module.ts
+│   └── auth/
+│       ├── dto/
+│       ├── strategies/
+│       ├── guards/
+│       └── auth.module.ts
+├── shared/
+│   ├── types/
+│   ├── constants/
+│   └── utils/
+└── main.ts
+```
+
+## Import/Export Standards
+- **Use absolute imports** with path mapping
+- **Group imports** by type (external, internal, relative)
+- **Use named exports** for most cases
+- **Use default exports** only for main module exports
+- **Avoid circular dependencies**
+
+```typescript
+// Good: Import organization
+// External libraries
+import { Injectable, Logger } from '@nestjs/common';
+import { InjectRepository } from '@nestjs/typeorm';
+import { Repository } from 'typeorm';
+import { JwtService } from '@nestjs/jwt';
+
+// Internal modules
+import { User } from '@/modules/users/entities/user.entity';
+import { CreateUserDto } from '@/modules/users/dto/create-user.dto';
+import { UserRepository } from '@/modules/users/repositories/user.repository';
+
+// Relative imports
+import { EmailService } from '../email/email.service';
+import { ValidationPipe } from '../common/pipes/validation.pipe';
+```
+
+## Naming Conventions
+- **Use PascalCase** for classes, interfaces, enums, and type aliases
+- **Use camelCase** for variables, functions, and methods
+- **Use UPPER_SNAKE_CASE** for constants
+- **Use kebab-case** for file names
+- **Use descriptive names** that explain purpose
+
+```typescript
+// Good: Naming conventions
+// Classes and interfaces
+export class UserService {}
+export interface UserRepository {}
+export enum UserStatus {}
+
+// Variables and functions
+const userRepository = new UserRepository();
+async function createUser(userData: CreateUserDto): Promise<User> {}
+
+// Constants
+const MAX_RETRY_ATTEMPTS = 3;
+const DEFAULT_PAGE_SIZE = 10;
+
+// File names: user.service.ts, create-user.dto.ts, user.entity.ts
+```
+
+## Error Handling Standards
+- **Use custom error classes** for domain-specific errors
+- **Implement proper error logging** with context
+- **Use consistent error response format**
+- **Handle errors at appropriate levels**
+- **Document error conditions**
+
+```typescript
+// Good: Error handling
+export class UserNotFoundError extends Error {
+  constructor(userId: string) {
+    super(`User with ID ${userId} not found`);
+    this.name = 'UserNotFoundError';
+  }
+}
+
+export class DuplicateEmailError extends Error {
+  constructor(email: string) {
+    super(`Email ${email} is already registered`);
+    this.name = 'DuplicateEmailError';
+  }
+}
+
+@Injectable()
+export class UserService {
+  private readonly logger = new Logger(UserService.name);
+
+  async findById(id: string): Promise<User> {
+    try {
+      const user = await this.userRepository.findById(id);
+      if (!user) {
+        throw new UserNotFoundError(id);
+      }
+      return user;
+    } catch (error) {
+      this.logger.error(`Failed to find user: ${error.message}`, {
+        userId: id,
+        error: error.message,
+        stack: error.stack,
+      });
+      throw error;
+    }
+  }
+}
+```
+
+## Documentation Standards
+- **Use JSDoc comments** for public APIs
+- **Document complex business logic**
+- **Include usage examples** in documentation
+- **Document error conditions** and edge cases
+- **Keep documentation up to date**
+
+```typescript
+// Good: Documentation
+/**
+ * Service for managing user operations
+ * 
+ * @example
+ * ```typescript
+ * const userService = new UserService(userRepository, logger);
+ * const user = await userService.createUser({
+ *   email: 'user@example.com',
+ *   firstName: 'John',
+ *   lastName: 'Doe'
+ * });
+ * ```
+ */
+@Injectable()
+export class UserService {
+  /**
+   * Creates a new user account
+   * 
+   * @param userData - The user data to create
+   * @returns Promise resolving to the created user
+   * @throws {ValidationError} When user data is invalid
+   * @throws {DuplicateEmailError} When email already exists
+   * 
+   * @example
+   * ```typescript
+   * const user = await userService.createUser({
+   *   email: 'user@example.com',
+   *   firstName: 'John',
+   *   lastName: 'Doe'
+   * });
+   * ```
+   */
+  async createUser(userData: CreateUserDto): Promise<User> {
+    // Implementation
+  }
+}
+```
+
+## Testing Standards
+- **Write tests for all public methods**
+- **Use descriptive test names** that explain the scenario
+- **Test both success and error cases**
+- **Use proper test organization** with describe blocks
+- **Mock external dependencies** appropriately
+
+```typescript
+// Good: Testing standards
+describe('UserService', () => {
+  let service: UserService;
+  let repository: jest.Mocked<UserRepository>;
+
+  beforeEach(async () => {
+    const module: TestingModule = await Test.createTestingModule({
+      providers: [
+        UserService,
+        {
+          provide: UserRepository,
+          useValue: {
+            findById: jest.fn(),
+            save: jest.fn(),
+            delete: jest.fn(),
+          },
+        },
+      ],
+    }).compile();
+
+    service = module.get<UserService>(UserService);
+    repository = module.get(UserRepository);
+  });
+
+  describe('createUser', () => {
+    it('should create a new user with valid data', async () => {
+      // Arrange
+      const userData = { email: 'test@example.com', firstName: 'John', lastName: 'Doe' };
+      const expectedUser = { id: '1', ...userData };
+      repository.save.mockResolvedValue(expectedUser);
+
+      // Act
+      const result = await service.createUser(userData);
+
+      // Assert
+      expect(result).toEqual(expectedUser);
+      expect(repository.save).toHaveBeenCalledWith(userData);
+    });
+
+    it('should throw DuplicateEmailError when email already exists', async () => {
+      // Arrange
+      const userData = { email: 'existing@example.com', firstName: 'John', lastName: 'Doe' };
+      repository.findByEmail.mockResolvedValue({ id: '1', email: 'existing@example.com' });
+
+      // Act & Assert
+      await expect(service.createUser(userData)).rejects.toThrow(DuplicateEmailError);
+    });
+  });
+});
+```
+
+## Performance Standards
+- **Avoid unnecessary object creation** in loops
+- **Use efficient algorithms** and data structures
+- **Implement proper caching** strategies
+- **Monitor memory usage** and optimize accordingly
+- **Use lazy loading** for expensive resources
+
+```typescript
+// Good: Performance optimization
+@Injectable()
+export class UserService {
+  private readonly userCache = new Map<string, User>();
+
+  async findById(id: string): Promise<User> {
+    // Check cache first
+    if (this.userCache.has(id)) {
+      return this.userCache.get(id);
+    }
+
+    // Fetch from database
+    const user = await this.userRepository.findById(id);
+    if (user) {
+      this.userCache.set(id, user);
+    }
+
+    return user;
+  }
+
+  // Use efficient data processing
+  async processUsers(userIds: string[]): Promise<User[]> {
+    const users: User[] = [];
+    const uncachedIds: string[] = [];
+
+    // Check cache first
+    for (const id of userIds) {
+      const cached = this.userCache.get(id);
+      if (cached) {
+        users.push(cached);
+      } else {
+        uncachedIds.push(id);
+      }
+    }
+
+    // Fetch uncached users
+    if (uncachedIds.length > 0) {
+      const fetchedUsers = await this.userRepository.findByIds(uncachedIds);
+      for (const user of fetchedUsers) {
+        this.userCache.set(user.id, user);
+        users.push(user);
+      }
+    }
+
+    return users;
+  }
+}
+```
+
+## Security Standards
+- **Validate all inputs** with proper DTOs
+- **Use parameterized queries** to prevent SQL injection
+- **Implement proper authentication** and authorization
+- **Log security events** for monitoring
+- **Use secure coding practices**
+
+```typescript
+// Good: Security practices
+@Injectable()
+export class UserService {
+  async createUser(userData: CreateUserDto): Promise<User> {
+    // Validate input data
+    const validationErrors = await validate(userData);
+    if (validationErrors.length > 0) {
+      throw new ValidationError('Invalid user data', validationErrors);
+    }
+
+    // Check for duplicate email
+    const existingUser = await this.userRepository.findByEmail(userData.email);
+    if (existingUser) {
+      throw new DuplicateEmailError(userData.email);
+    }
+
+    // Hash password securely
+    const hashedPassword = await bcrypt.hash(userData.password, 12);
+
+    // Create user with hashed password
+    const user = this.userRepository.create({
+      ...userData,
+      password: hashedPassword,
+    });
+
+    return this.userRepository.save(user);
+  }
+}
+```

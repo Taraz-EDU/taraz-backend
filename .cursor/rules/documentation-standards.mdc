@@ -1,0 +1,440 @@
+---
+description: Documentation and API Standards for NestJS
+globs: ["**/*.ts", "**/*.md", "**/package.json"]
+alwaysApply: true
+---
+
+# Documentation and API Standards for NestJS
+
+## API Documentation with Swagger
+- **Use OpenAPI/Swagger** for comprehensive API documentation
+- **Document all endpoints** with proper descriptions
+- **Include request/response examples** for clarity
+- **Use proper HTTP status codes** in documentation
+- **Document authentication requirements**
+
+```typescript
+// Good: Comprehensive API documentation
+@ApiTags('Users')
+@Controller('api/v1/users')
+export class UserController {
+  constructor(private readonly userService: UserService) {}
+
+  @Post()
+  @HttpCode(HttpStatus.CREATED)
+  @ApiOperation({ 
+    summary: 'Create a new user',
+    description: 'Creates a new user account with the provided information'
+  })
+  @ApiResponse({ 
+    status: 201, 
+    description: 'User created successfully',
+    type: UserDto
+  })
+  @ApiResponse({ 
+    status: 400, 
+    description: 'Invalid input data',
+    type: ValidationErrorDto
+  })
+  @ApiResponse({ 
+    status: 409, 
+    description: 'Email already exists',
+    type: ConflictErrorDto
+  })
+  @ApiBody({ type: CreateUserDto })
+  async create(@Body() createUserDto: CreateUserDto): Promise<UserDto> {
+    return this.userService.create(createUserDto);
+  }
+
+  @Get(':id')
+  @ApiOperation({ summary: 'Get user by ID' })
+  @ApiParam({ 
+    name: 'id', 
+    description: 'User ID',
+    example: '123e4567-e89b-12d3-a456-426614174000'
+  })
+  @ApiResponse({ 
+    status: 200, 
+    description: 'User found',
+    type: UserDto
+  })
+  @ApiResponse({ 
+    status: 404, 
+    description: 'User not found',
+    type: NotFoundErrorDto
+  })
+  async findOne(@Param('id', ParseUUIDPipe) id: string): Promise<UserDto> {
+    return this.userService.findOne(id);
+  }
+}
+```
+
+## DTO Documentation
+- **Use class-validator decorators** for validation and documentation
+- **Include JSDoc comments** for complex business logic
+- **Document field constraints** and requirements
+- **Provide examples** for better understanding
+
+```typescript
+// Good: Well-documented DTO
+export class CreateUserDto {
+  @ApiProperty({
+    description: 'User email address',
+    example: 'user@example.com',
+    format: 'email'
+  })
+  @IsEmail({}, { message: 'Please provide a valid email address' })
+  @IsNotEmpty({ message: 'Email is required' })
+  email: string;
+
+  @ApiProperty({
+    description: 'User password',
+    example: 'SecurePassword123!',
+    minLength: 8,
+    maxLength: 128
+  })
+  @IsString()
+  @MinLength(8, { message: 'Password must be at least 8 characters long' })
+  @MaxLength(128, { message: 'Password must not exceed 128 characters' })
+  @Matches(/^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*?&])[A-Za-z\d@$!%*?&]/, {
+    message: 'Password must contain at least one uppercase letter, one lowercase letter, one number, and one special character'
+  })
+  password: string;
+
+  @ApiProperty({
+    description: 'User first name',
+    example: 'John',
+    minLength: 2,
+    maxLength: 50
+  })
+  @IsString()
+  @Length(2, 50, { message: 'First name must be between 2 and 50 characters' })
+  @IsNotEmpty({ message: 'First name is required' })
+  firstName: string;
+
+  @ApiProperty({
+    description: 'User last name',
+    example: 'Doe',
+    minLength: 2,
+    maxLength: 50
+  })
+  @IsString()
+  @Length(2, 50, { message: 'Last name must be between 2 and 50 characters' })
+  @IsNotEmpty({ message: 'Last name is required' })
+  lastName: string;
+}
+```
+
+## Code Documentation
+- **Use JSDoc comments** for public methods and classes
+- **Document complex algorithms** and business logic
+- **Include parameter descriptions** and return types
+- **Document side effects** and error conditions
+- **Provide usage examples** in comments
+
+```typescript
+/**
+ * Service for managing user operations
+ * 
+ * @example
+ * ```typescript
+ * const userService = new UserService(userRepository, logger);
+ * const user = await userService.createUser({
+ *   email: 'user@example.com',
+ *   firstName: 'John',
+ *   lastName: 'Doe'
+ * });
+ * ```
+ */
+@Injectable()
+export class UserService {
+  private readonly logger = new Logger(UserService.name);
+
+  constructor(
+    private readonly userRepository: UserRepository,
+    private readonly emailService: EmailService,
+  ) {}
+
+  /**
+   * Creates a new user account
+   * 
+   * @param userData - The user data to create
+   * @returns Promise resolving to the created user
+   * @throws {ValidationError} When user data is invalid
+   * @throws {DuplicateEmailError} When email already exists
+   * @throws {InternalServerError} When user creation fails
+   * 
+   * @example
+   * ```typescript
+   * const user = await userService.createUser({
+   *   email: 'user@example.com',
+   *   firstName: 'John',
+   *   lastName: 'Doe'
+   * });
+   * ```
+   */
+  async createUser(userData: CreateUserDto): Promise<User> {
+    try {
+      // Check if email already exists
+      const existingUser = await this.userRepository.findByEmail(userData.email);
+      if (existingUser) {
+        throw new DuplicateEmailError(userData.email);
+      }
+
+      // Create user entity
+      const user = this.userRepository.create(userData);
+      const savedUser = await this.userRepository.save(user);
+
+      // Send welcome email
+      await this.emailService.sendWelcomeEmail(savedUser.email);
+
+      this.logger.log(`User created successfully: ${savedUser.id}`);
+      return savedUser;
+    } catch (error) {
+      this.logger.error('Failed to create user', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Finds a user by ID
+   * 
+   * @param id - The user ID to search for
+   * @returns Promise resolving to the user or null if not found
+   * 
+   * @example
+   * ```typescript
+   * const user = await userService.findById('123e4567-e89b-12d3-a456-426614174000');
+   * if (user) {
+   *   console.log(`Found user: ${user.firstName} ${user.lastName}`);
+   * }
+   * ```
+   */
+  async findById(id: string): Promise<User | null> {
+    return this.userRepository.findById(id);
+  }
+}
+```
+
+## README Documentation
+- **Include project overview** and purpose
+- **Document installation** and setup instructions
+- **Provide API usage examples**
+- **Include environment configuration**
+- **Document deployment procedures**
+
+```markdown
+# Project Name
+
+A NestJS-based backend application for [project description].
+
+## Features
+
+- User management
+- Authentication and authorization
+- RESTful API endpoints
+- Database integration
+- Comprehensive testing
+
+## Prerequisites
+
+- Node.js 18+ 
+- PostgreSQL 13+
+- Redis 6+
+
+## Installation
+
+1. Clone the repository
+```bash
+git clone <repository-url>
+cd project-name
+```
+
+2. Install dependencies
+```bash
+npm install
+```
+
+3. Set up environment variables
+```bash
+cp .env.example .env
+# Edit .env with your configuration
+```
+
+4. Set up the database
+```bash
+npm run migration:run
+```
+
+5. Start the application
+```bash
+npm run start:dev
+```
+
+## API Documentation
+
+Once the application is running, visit `http://localhost:3000/api` to view the Swagger documentation.
+
+## Environment Variables
+
+| Variable | Description | Default |
+|----------|-------------|---------|
+| `PORT` | Server port | 3000 |
+| `DATABASE_URL` | PostgreSQL connection string | - |
+| `JWT_SECRET` | JWT signing secret | - |
+| `REDIS_URL` | Redis connection string | - |
+
+## Testing
+
+Run unit tests:
+```bash
+npm run test
+```
+
+Run integration tests:
+```bash
+npm run test:e2e
+```
+
+Run all tests with coverage:
+```bash
+npm run test:cov
+```
+
+## Deployment
+
+### Docker
+
+```bash
+docker build -t project-name .
+docker run -p 3000:3000 project-name
+```
+
+### Production
+
+```bash
+npm run build
+npm run start:prod
+```
+```
+
+## Error Documentation
+- **Document all possible errors** and their causes
+- **Include error codes** for programmatic handling
+- **Provide troubleshooting guides**
+- **Document recovery procedures**
+
+```typescript
+/**
+ * Custom error classes with detailed documentation
+ */
+export class UserNotFoundError extends Error {
+  constructor(userId: string) {
+    super(`User with ID ${userId} not found`);
+    this.name = 'UserNotFoundError';
+  }
+}
+
+export class DuplicateEmailError extends Error {
+  constructor(email: string) {
+    super(`Email ${email} is already registered`);
+    this.name = 'DuplicateEmailError';
+  }
+}
+
+/**
+ * Error response DTO for API documentation
+ */
+export class ErrorResponseDto {
+  @ApiProperty({
+    description: 'HTTP status code',
+    example: 400
+  })
+  statusCode: number;
+
+  @ApiProperty({
+    description: 'Error message',
+    example: 'Validation failed'
+  })
+  message: string;
+
+  @ApiProperty({
+    description: 'Error timestamp',
+    example: '2023-01-01T00:00:00.000Z'
+  })
+  timestamp: string;
+
+  @ApiProperty({
+    description: 'Request path',
+    example: '/api/v1/users'
+  })
+  path: string;
+}
+```
+
+## Architecture Documentation
+- **Document system architecture** and components
+- **Include database schema** documentation
+- **Document integration points** with external services
+- **Provide deployment architecture** diagrams
+
+```typescript
+/**
+ * System Architecture Documentation
+ * 
+ * The application follows a layered architecture:
+ * 
+ * 1. Controllers Layer - Handle HTTP requests and responses
+ * 2. Services Layer - Business logic and orchestration
+ * 3. Repository Layer - Data access and persistence
+ * 4. Entity Layer - Domain models and data structures
+ * 
+ * External Dependencies:
+ * - PostgreSQL: Primary database
+ * - Redis: Caching and session storage
+ * - Email Service: User notifications
+ * 
+ * Security:
+ * - JWT authentication
+ * - Role-based authorization
+ * - Input validation and sanitization
+ * - Rate limiting and CORS
+ */
+```
+
+## Changelog Documentation
+- **Maintain a detailed changelog** for all releases
+- **Document breaking changes** clearly
+- **Include migration guides** for major updates
+- **Track feature additions** and bug fixes
+
+```markdown
+# Changelog
+
+## [1.2.0] - 2023-01-15
+
+### Added
+- User profile management endpoints
+- Email verification system
+- Password reset functionality
+
+### Changed
+- Updated user creation flow to require email verification
+- Improved error handling for validation failures
+
+### Fixed
+- Fixed memory leak in user session management
+- Resolved issue with duplicate email validation
+
+## [1.1.0] - 2023-01-01
+
+### Added
+- JWT authentication system
+- Role-based access control
+- API rate limiting
+
+### Security
+- Implemented password hashing with bcrypt
+- Added CORS configuration
+- Enhanced input validation
+```

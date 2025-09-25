@@ -1,0 +1,346 @@
+---
+description: Performance Optimization for NestJS Applications
+globs: ["**/*.ts", "**/*.json"]
+alwaysApply: true
+---
+
+# Performance Optimization for NestJS Applications
+
+## Database Optimization
+- **Use database indexing** strategically for frequently queried columns
+- **Implement query optimization** - avoid N+1 queries
+- **Use database connection pooling** for better resource management
+- **Implement database caching** for frequently accessed data
+- **Use pagination** for large datasets
+
+```typescript
+// Good: Optimized database queries
+@Injectable()
+export class UserService {
+  constructor(
+    @InjectRepository(User)
+    private readonly userRepository: Repository<User>,
+  ) {}
+
+  // Use select to limit fields
+  async findUsersWithPagination(page: number, limit: number) {
+    return this.userRepository.find({
+      select: ['id', 'email', 'firstName', 'lastName'],
+      skip: (page - 1) * limit,
+      take: limit,
+      order: { createdAt: 'DESC' },
+    });
+  }
+
+  // Use relations efficiently
+  async findUserWithProfile(id: string) {
+    return this.userRepository.findOne({
+      where: { id },
+      relations: ['profile'],
+      select: {
+        id: true,
+        email: true,
+        profile: {
+          id: true,
+          bio: true,
+          avatar: true,
+        },
+      },
+    });
+  }
+}
+```
+
+## Caching Strategies
+- **Implement Redis caching** for frequently accessed data
+- **Use cache-aside pattern** for read-heavy operations
+- **Implement cache invalidation** strategies
+- **Use HTTP caching** headers for API responses
+- **Cache expensive computations**
+
+```typescript
+// Good: Redis caching implementation
+@Injectable()
+export class UserService {
+  constructor(
+    @InjectRepository(User)
+    private readonly userRepository: Repository<User>,
+    @Inject(CACHE_MANAGER)
+    private readonly cacheManager: Cache,
+  ) {}
+
+  async findById(id: string): Promise<User> {
+    const cacheKey = `user:${id}`;
+    let user = await this.cacheManager.get<User>(cacheKey);
+
+    if (!user) {
+      user = await this.userRepository.findOne({ where: { id } });
+      if (user) {
+        await this.cacheManager.set(cacheKey, user, 300); // 5 minutes
+      }
+    }
+
+    return user;
+  }
+
+  async updateUser(id: string, updateData: Partial<User>): Promise<User> {
+    const user = await this.userRepository.save({ id, ...updateData });
+    
+    // Invalidate cache
+    await this.cacheManager.del(`user:${id}`);
+    
+    return user;
+  }
+}
+```
+
+## API Performance
+- **Implement response compression** (gzip)
+- **Use HTTP/2** for better multiplexing
+- **Implement request/response streaming** for large data
+- **Use proper HTTP status codes** and headers
+- **Implement API rate limiting**
+
+```typescript
+// Good: Compression and performance middleware
+import compression from 'compression';
+
+async function bootstrap() {
+  const app = await NestFactory.create(AppModule);
+  
+  // Enable compression
+  app.use(compression());
+  
+  // Enable CORS with performance considerations
+  app.enableCors({
+    origin: process.env.ALLOWED_ORIGINS?.split(','),
+    credentials: true,
+    optionsSuccessStatus: 200,
+  });
+
+  await app.listen(3000);
+}
+```
+
+## Memory Management
+- **Avoid memory leaks** by properly disposing resources
+- **Use streaming** for large file operations
+- **Implement proper garbage collection** practices
+- **Monitor memory usage** in production
+- **Use object pooling** for frequently created objects
+
+```typescript
+// Good: Memory-efficient file processing
+@Injectable()
+export class FileService {
+  async processLargeFile(filePath: string): Promise<void> {
+    const stream = createReadStream(filePath, { highWaterMark: 64 * 1024 });
+    
+    return new Promise((resolve, reject) => {
+      stream.on('data', (chunk) => {
+        // Process chunk without loading entire file into memory
+        this.processChunk(chunk);
+      });
+      
+      stream.on('end', resolve);
+      stream.on('error', reject);
+    });
+  }
+}
+```
+
+## Asynchronous Operations
+- **Use async/await** properly to avoid blocking
+- **Implement parallel processing** where possible
+- **Use worker threads** for CPU-intensive tasks
+- **Implement proper error handling** for async operations
+- **Use Promise.all()** for independent operations
+
+```typescript
+// Good: Parallel processing
+@Injectable()
+export class DataProcessingService {
+  async processUserData(userId: string): Promise<ProcessedData> {
+    // Process independent operations in parallel
+    const [user, profile, preferences] = await Promise.all([
+      this.userService.findById(userId),
+      this.profileService.findByUserId(userId),
+      this.preferencesService.findByUserId(userId),
+    ]);
+
+    return this.combineUserData(user, profile, preferences);
+  }
+
+  // Use worker threads for CPU-intensive tasks
+  async processLargeDataset(data: any[]): Promise<any[]> {
+    const worker = new Worker('./data-processor.worker.js');
+    
+    return new Promise((resolve, reject) => {
+      worker.postMessage(data);
+      worker.on('message', resolve);
+      worker.on('error', reject);
+    });
+  }
+}
+```
+
+## Connection Pooling
+- **Configure database connection pools** appropriately
+- **Use connection pooling** for external services
+- **Implement connection health checks**
+- **Monitor connection usage** and adjust pool sizes
+
+```typescript
+// Good: Database connection configuration
+@Module({
+  imports: [
+    TypeOrmModule.forRoot({
+      type: 'postgres',
+      host: process.env.DB_HOST,
+      port: parseInt(process.env.DB_PORT),
+      username: process.env.DB_USERNAME,
+      password: process.env.DB_PASSWORD,
+      database: process.env.DB_NAME,
+      entities: [User, Profile],
+      synchronize: false,
+      logging: process.env.NODE_ENV === 'development',
+      poolSize: 10, // Connection pool size
+      maxQueryExecutionTime: 1000, // Query timeout
+    }),
+  ],
+})
+export class DatabaseModule {}
+```
+
+## Monitoring and Profiling
+- **Implement performance monitoring** (APM tools)
+- **Use profiling tools** to identify bottlenecks
+- **Monitor database query performance**
+- **Track memory usage** and garbage collection
+- **Implement health checks** for services
+
+```typescript
+// Good: Performance monitoring
+@Injectable()
+export class PerformanceMonitor {
+  private readonly logger = new Logger(PerformanceMonitor.name);
+
+  @UseInterceptors(new LoggingInterceptor())
+  async monitorPerformance(target: any, propertyName: string, descriptor: PropertyDescriptor) {
+    const method = descriptor.value;
+    
+    descriptor.value = async function (...args: any[]) {
+      const start = Date.now();
+      try {
+        const result = await method.apply(this, args);
+        const duration = Date.now() - start;
+        
+        if (duration > 1000) { // Log slow operations
+          this.logger.warn(`Slow operation: ${propertyName} took ${duration}ms`);
+        }
+        
+        return result;
+      } catch (error) {
+        const duration = Date.now() - start;
+        this.logger.error(`Operation failed: ${propertyName} after ${duration}ms`, error);
+        throw error;
+      }
+    };
+  }
+}
+```
+
+## Code Optimization
+- **Use efficient algorithms** and data structures
+- **Avoid unnecessary object creation** in loops
+- **Use lazy loading** for expensive resources
+- **Implement proper error handling** without performance impact
+- **Use TypeScript strict mode** for better optimization
+
+```typescript
+// Good: Efficient data processing
+@Injectable()
+export class DataProcessor {
+  // Use Map for O(1) lookups instead of array.find()
+  private userCache = new Map<string, User>();
+
+  async processUsers(userIds: string[]): Promise<User[]> {
+    const users: User[] = [];
+    const uncachedIds: string[] = [];
+
+    // Check cache first
+    for (const id of userIds) {
+      const cached = this.userCache.get(id);
+      if (cached) {
+        users.push(cached);
+      } else {
+        uncachedIds.push(id);
+      }
+    }
+
+    // Fetch uncached users
+    if (uncachedIds.length > 0) {
+      const fetchedUsers = await this.userRepository.findByIds(uncachedIds);
+      for (const user of fetchedUsers) {
+        this.userCache.set(user.id, user);
+        users.push(user);
+      }
+    }
+
+    return users;
+  }
+}
+```
+
+## Load Balancing and Scaling
+- **Implement horizontal scaling** strategies
+- **Use load balancers** for traffic distribution
+- **Implement session affinity** when needed
+- **Use stateless design** for better scalability
+- **Implement circuit breakers** for external services
+
+```typescript
+// Good: Circuit breaker pattern
+@Injectable()
+export class ExternalServiceClient {
+  private circuitBreaker = new CircuitBreaker(this.callExternalService, {
+    timeout: 3000,
+    errorThresholdPercentage: 50,
+    resetTimeout: 30000,
+  });
+
+  async callExternalService(): Promise<any> {
+    // Implementation
+  }
+
+  async getData(): Promise<any> {
+    return this.circuitBreaker.fire();
+  }
+}
+```
+
+## Resource Management
+- **Implement proper cleanup** for resources
+- **Use connection timeouts** for external services
+- **Implement graceful shutdown** procedures
+- **Monitor resource usage** continuously
+- **Use resource limits** and quotas
+
+```typescript
+// Good: Resource cleanup
+@Injectable()
+export class ResourceManager implements OnModuleDestroy {
+  private connections: Connection[] = [];
+
+  async onModuleDestroy() {
+    // Clean up connections
+    await Promise.all(
+      this.connections.map(conn => conn.close())
+    );
+  }
+
+  addConnection(connection: Connection) {
+    this.connections.push(connection);
+  }
+}
+```
