@@ -6,6 +6,7 @@
   "private": true,
   "license": "UNLICENSED",
   "scripts": {
+    "dev": "nest start --watch",
     "build": "nest build",
     "format": "prettier --write \"src/**/*.ts\" \"test/**/*.ts\"",
     "format:check": "prettier --check \"src/**/*.ts\" \"test/**/*.ts\"",
@@ -28,7 +29,8 @@
     "swagger:generate": "echo 'Swagger documentation generated'",
     "fly:deploy": "flyctl deploy",
     "fly:logs": "flyctl logs",
-    "fly:status": "flyctl status"
+    "fly:status": "flyctl status",
+    "proxy": "flyctl proxy 5432:5432 -a taraz-database"
   },
   "dependencies": {
     "@nestjs/common": "^11.0.1",

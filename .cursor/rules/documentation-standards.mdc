@@ -273,16 +273,15 @@ npm run start:dev
 
 ## API Documentation
 
-Once the application is running, visit `http://localhost:3000/api` to view the Swagger documentation.
+Once the application is running, visit `http://localhost:3030/api` to view the Swagger documentation.
 
 ## Environment Variables
 
 | Variable | Description | Default |
 |----------|-------------|---------|
-| `PORT` | Server port | 3000 |
+| `PORT` | Server port | 3030 |
 | `DATABASE_URL` | PostgreSQL connection string | - |
 | `JWT_SECRET` | JWT signing secret | - |
-| `REDIS_URL` | Redis connection string | - |
 
 ## Testing
 
@@ -307,7 +306,7 @@ npm run test:cov
 
 ```bash
 docker build -t project-name .
-docker run -p 3000:3000 project-name
+docker run -p 3030:3030 project-name
 ```
 
 ### Production

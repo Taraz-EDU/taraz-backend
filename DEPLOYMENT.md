@@ -164,7 +164,6 @@ CORS_ORIGIN=https://your-frontend-domain.com
 
 # Optional variables
 LOG_LEVEL=info
-REDIS_URL=redis://...  # If using Redis
 ```
 
 ### Local Development

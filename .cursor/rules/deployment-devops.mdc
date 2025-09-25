@@ -48,7 +48,7 @@ RUN chown -R nestjs:nodejs /app
 USER nestjs
 
 # Expose port
-EXPOSE 3000
+EXPOSE 3030
 
 # Health check
 HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
@@ -73,11 +73,10 @@ services:
   app:
     build: .
     ports:
-      - "${PORT:-3000}:3000"
+      - "${PORT:-3030}:3030"
     environment:
       - NODE_ENV=production
       - DATABASE_URL=postgresql://postgres:password@db:5432/app_db
-      - REDIS_URL=redis://redis:6379
       - JWT_SECRET=${JWT_SECRET}
     depends_on:
       db:
@@ -86,7 +85,7 @@ services:
         condition: service_healthy
     restart: unless-stopped
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:3000/health"]
+      test: ["CMD", "curl", "-f", "http://localhost:3030/health"]
       interval: 30s
       timeout: 10s
       retries: 3
@@ -158,13 +157,10 @@ export class EnvironmentVariables {
 
   @IsNumber()
   @Transform(({ value }) => parseInt(value))
-  PORT: number = 3000;
+  PORT: number = 3030;
 
   @IsString()
   DATABASE_URL: string;
-
-  @IsString()
-  REDIS_URL: string;
 
   @IsString()
   JWT_SECRET: string;
@@ -175,7 +171,7 @@ export class EnvironmentVariables {
 
   @IsOptional()
   @IsString()
-  CORS_ORIGIN: string = 'http://localhost:3000';
+  CORS_ORIGIN: string = 'http://localhost:3030';
 
   @IsOptional()
   @IsString()
@@ -336,7 +332,7 @@ spec:
       - name: nestjs-app
         image: nestjs-app:latest
         ports:
-        - containerPort: 3000
+        - containerPort: 3030
         env:
         - name: NODE_ENV
           value: "production"
@@ -360,13 +356,13 @@ spec:
         livenessProbe:
           httpGet:
             path: /health
-            port: 3000
+            port: 3030
           initialDelaySeconds: 30
           periodSeconds: 10
         readinessProbe:
           httpGet:
             path: /health
-            port: 3000
+            port: 3030
           initialDelaySeconds: 5
           periodSeconds: 5
 ---
@@ -379,7 +375,7 @@ spec:
     app: nestjs-app
   ports:
   - port: 80
-    targetPort: 3000
+    targetPort: 3030
   type: LoadBalancer
 ---
 apiVersion: autoscaling/v2
@@ -478,7 +474,7 @@ spec:
           name: ingress-nginx
     ports:
     - protocol: TCP
-      port: 3000
+      port: 3030
   egress:
   - to:
     - namespaceSelector:
@@ -549,7 +545,7 @@ resource "aws_ecs_service" "nestjs_service" {
   load_balancer {
     target_group_arn = aws_lb_target_group.nestjs_tg.arn
     container_name   = "nestjs-app"
-    container_port   = 3000
+    container_port   = 3030
   }
 }
 
@@ -567,7 +563,7 @@ resource "aws_ecs_task_definition" "nestjs_task" {
       image = "nestjs-app:latest"
       portMappings = [
         {
-          containerPort = 3000
+          containerPort = 3030
           protocol      = "tcp"
         }
       ]

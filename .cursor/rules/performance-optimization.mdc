@@ -118,7 +118,7 @@ async function bootstrap() {
     optionsSuccessStatus: 200,
   });
 
-  await app.listen(3000);
+  await app.listen(3030);
 }
 ```
 
@@ -304,9 +304,9 @@ export class DataProcessor {
 @Injectable()
 export class ExternalServiceClient {
   private circuitBreaker = new CircuitBreaker(this.callExternalService, {
-    timeout: 3000,
+    timeout: 3030,
     errorThresholdPercentage: 50,
-    resetTimeout: 30000,
+    resetTimeout: 30300,
   });
 
   async callExternalService(): Promise<any> {

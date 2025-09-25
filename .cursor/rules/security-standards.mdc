@@ -94,7 +94,7 @@ async uploadFile(@UploadedFile() file: Express.Multer.File) {
 ```typescript
 // Good: CORS configuration
 const corsOptions = {
-  origin: process.env.ALLOWED_ORIGINS?.split(',') || ['http://localhost:3000'],
+  origin: process.env.ALLOWED_ORIGINS?.split(',') || ['http://localhost:3030'],
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH'],
   allowedHeaders: ['Content-Type', 'Authorization'],
@@ -234,13 +234,13 @@ async function bootstrap() {
       },
     },
     hsts: {
-      maxAge: 31536000,
+      maxAge: 31533030,
       includeSubDomains: true,
       preload: true,
     },
   }));
 
-  await app.listen(3000);
+  await app.listen(3030);
 }
 ```
 
@@ -273,7 +273,7 @@ export class SecurityConfig {
     return {
       origin: isProduction 
         ? process.env.ALLOWED_ORIGINS?.split(',')
-        : ['http://localhost:3000'],
+        : ['http://localhost:3030'],
       credentials: true,
     };
   }
