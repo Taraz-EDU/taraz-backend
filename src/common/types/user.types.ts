@@ -1,38 +1,19 @@
-import { UserStatus, RoleName } from '@prisma/client';
+import type { Prisma, User as PrismaUser, UserStatus, RoleName } from '@prisma/client';
 
-export interface UserWithRoles {
-  id: string;
-  email: string;
-  firstName: string;
-  lastName: string;
-  password: string;
-  status: UserStatus;
-  isEmailVerified: boolean;
-  emailVerificationToken: string | null;
-  passwordResetToken: string | null;
-  passwordResetExpires: Date | null;
-  lastLoginAt: Date | null;
-  createdAt: Date;
-  updatedAt: Date;
-  userRoles: {
-    id: string;
-    userId: string;
-    roleId: string;
-    isActive: boolean;
-    assignedAt: Date | null;
-    expiresAt: Date | null;
-    createdAt: Date;
-    role: {
-      id: string;
-      name: RoleName;
-      displayName: string;
-      description: string | null;
-      hierarchyLevel: number;
-      isActive: boolean;
-      createdAt: Date;
-      updatedAt: Date;
+export type User = PrismaUser;
+
+export type UserWithRoles = Prisma.UserGetPayload<{
+  include: {
+    userRoles: {
+      include: {
+        role: true;
+      };
     };
-  }[];
+  };
+}>;
+
+export interface RequestWithUser extends Request {
+  user: UserWithRoles;
 }
 
 export interface CreateUserData {
@@ -56,6 +37,8 @@ export interface UpdateUserData {
   passwordResetToken?: string | null;
   passwordResetExpires?: Date | null;
   lastLoginAt?: Date | null;
+  refreshToken?: string | null;
+  accessToken?: string | null;
 }
 
 export { UserStatus, RoleName };

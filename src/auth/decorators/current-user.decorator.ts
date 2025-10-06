@@ -1,19 +1,24 @@
-import type { ExecutionContext } from '@nestjs/common';
-import { createParamDecorator } from '@nestjs/common';
+import { createParamDecorator, type ExecutionContext } from '@nestjs/common';
+import type { UserWithRoles, RequestWithUser } from 'src/common/types/user.types';
 
-export interface CurrentUserData {
-  id: string;
-  email: string;
-  firstName: string;
-  lastName: string;
-  status: string;
-  isEmailVerified: boolean;
-  roles: string[];
-}
+export type CurrentUserData = UserWithRoles;
 
+/**
+ * A decorator to extract the current user from the request.
+ *
+ * @returns The current user object.
+ *
+ * @example
+ * ```typescript
+ * @Get('profile')
+ * getProfile(@CurrentUser() user: User) {
+ *   return user;
+ * }
+ * ```
+ */
 export const CurrentUser = createParamDecorator(
-  (_data: unknown, ctx: ExecutionContext): CurrentUserData => {
-    const request = ctx.switchToHttp().getRequest();
+  (_data: unknown, ctx: ExecutionContext): UserWithRoles => {
+    const request = ctx.switchToHttp().getRequest<RequestWithUser>();
     return request.user;
   }
 );

@@ -6,18 +6,18 @@ import {
   HttpStatus,
   UseGuards,
   Get,
-  Query,
+  Request,
 } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiResponse, ApiBody, ApiBearerAuth } from '@nestjs/swagger';
+import { type RequestWithUser } from 'src/common/types/user.types';
 
-import { CurrentUser, CurrentUserData } from '../decorators/current-user.decorator';
+import { type CurrentUserData } from '../decorators/current-user.decorator';
 import { Public } from '../decorators/public.decorator';
 import { AuthResponseDto, UserResponseDto } from '../dto/auth-response.dto';
-import { ForgotPasswordDto } from '../dto/forgot-password.dto';
-import { LoginDto } from '../dto/login.dto';
-import { RegisterDto } from '../dto/register.dto';
-import { ResetPasswordDto } from '../dto/reset-password.dto';
-import { VerifyEmailDto } from '../dto/verify-email.dto';
+import { type ForgotPasswordDto } from '../dto/forgot-password.dto';
+import { type RegisterDto } from '../dto/register.dto';
+import { type ResetPasswordDto } from '../dto/reset-password.dto';
+import { type VerifyEmailDto } from '../dto/verify-email.dto';
 import { JwtAuthGuard } from '../guards/jwt-auth.guard';
 import { JwtRefreshGuard } from '../guards/jwt-refresh.guard';
 import { AuthService } from '../services/auth.service';
@@ -27,7 +27,6 @@ import { AuthService } from '../services/auth.service';
 export class AuthController {
   constructor(private readonly authService: AuthService) {}
 
-  @Public()
   @Post('register')
   @HttpCode(HttpStatus.CREATED)
   @ApiOperation({
@@ -78,61 +77,31 @@ export class AuthController {
     },
   })
   @ApiBody({ type: RegisterDto })
-  async register(
-    @Body() registerDto: RegisterDto
-  ): Promise<{ user: UserResponseDto; message: string }> {
-    return this.authService.register(registerDto);
+  async register(@Body() registerDto: RegisterDto): Promise<{ message: string }> {
+    await this.authService.register(registerDto);
+    return {
+      message: 'Registration successful. Please check your email to verify your account.',
+    };
   }
 
-  @Public()
   @Post('login')
+  @Public()
+  @UseGuards(JwtAuthGuard)
   @HttpCode(HttpStatus.OK)
-  @ApiOperation({
-    summary: 'User login',
-    description: 'Authenticate user and return access and refresh tokens',
-  })
-  @ApiResponse({
-    status: 200,
-    description: 'Login successful',
-    type: AuthResponseDto,
-  })
-  @ApiResponse({
-    status: 401,
-    description: 'Invalid credentials',
-    schema: {
-      type: 'object',
-      properties: {
-        statusCode: { type: 'number', example: 401 },
-        message: { type: 'string', example: 'Invalid credentials' },
-        error: { type: 'string', example: 'Unauthorized' },
-      },
-    },
-  })
-  @ApiBody({ type: LoginDto })
-  async login(@Body() loginDto: LoginDto): Promise<AuthResponseDto> {
-    return this.authService.login(loginDto);
+  @ApiOperation({ summary: 'Log in a user' })
+  async login(@Request() req: RequestWithUser): Promise<AuthResponseDto> {
+    const tokens = await this.authService.login(req.user);
+    return new AuthResponseDto(req.user, tokens.accessToken, tokens.refreshToken);
   }
 
-  @Public()
-  @Post('refresh')
+  @Get('refresh')
   @UseGuards(JwtRefreshGuard)
-  @HttpCode(HttpStatus.OK)
-  @ApiOperation({
-    summary: 'Refresh access token',
-    description: 'Generate new access token using refresh token',
-  })
-  @ApiResponse({
-    status: 200,
-    description: 'Token refreshed successfully',
-    type: AuthResponseDto,
-  })
-  @ApiResponse({
-    status: 401,
-    description: 'Invalid or expired refresh token',
-  })
-  @ApiBearerAuth()
-  async refresh(@CurrentUser() user: CurrentUserData): Promise<AuthResponseDto> {
-    return this.authService.refreshTokens(user.id, user.email);
+  @ApiBearerAuth('jwt-refresh')
+  @ApiOperation({ summary: 'Refresh authentication tokens' })
+  async refreshTokens(@Request() req: RequestWithUser): Promise<AuthResponseDto> {
+    const { user } = req;
+    const tokens = await this.authService.refreshTokens(user.id, user.email);
+    return new AuthResponseDto(user, tokens.accessToken, tokens.refreshToken);
   }
 
   @Public()
@@ -157,7 +126,10 @@ export class AuthController {
   })
   @ApiBody({ type: ForgotPasswordDto })
   async forgotPassword(@Body() forgotPasswordDto: ForgotPasswordDto): Promise<{ message: string }> {
-    return this.authService.forgotPassword(forgotPasswordDto);
+    await this.authService.forgotPassword(forgotPasswordDto.email);
+    return {
+      message: 'If your email is in our system, you will receive a password reset link.',
+    };
   }
 
   @Public()
@@ -186,7 +158,8 @@ export class AuthController {
   })
   @ApiBody({ type: ResetPasswordDto })
   async resetPassword(@Body() resetPasswordDto: ResetPasswordDto): Promise<{ message: string }> {
-    return this.authService.resetPassword(resetPasswordDto);
+    await this.authService.resetPassword(resetPasswordDto.token, resetPasswordDto.password);
+    return { message: 'Password has been reset successfully' };
   }
 
   @Public()
@@ -215,7 +188,8 @@ export class AuthController {
   })
   @ApiBody({ type: VerifyEmailDto })
   async verifyEmail(@Body() verifyEmailDto: VerifyEmailDto): Promise<{ message: string }> {
-    return this.authService.verifyEmail(verifyEmailDto);
+    await this.authService.verifyEmail(verifyEmailDto.token);
+    return { message: 'Email verified successfully' };
   }
 
   @Public()
@@ -246,8 +220,11 @@ export class AuthController {
     status: 400,
     description: 'Email is already verified',
   })
-  async resendVerification(@Query('email') email: string): Promise<{ message: string }> {
-    return this.authService.resendVerification(email);
+  async resendVerification(
+    @Body() forgotPasswordDto: ForgotPasswordDto
+  ): Promise<{ message: string }> {
+    await this.authService.resendVerification(forgotPasswordDto.email);
+    return { message: 'Verification email resent' };
   }
 
   @Get('me')
@@ -267,7 +244,7 @@ export class AuthController {
   })
   @ApiBearerAuth()
   getProfile(@CurrentUser() user: CurrentUserData): UserResponseDto {
-    return user as UserResponseDto;
+    return new UserResponseDto(user);
   }
 
   @Post('logout')
@@ -291,12 +268,8 @@ export class AuthController {
     },
   })
   @ApiBearerAuth()
-  logout(): { message: string } {
-    // In a more sophisticated implementation, you might want to:
-    // 1. Add the token to a blacklist
-    // 2. Invalidate the refresh token
-    // 3. Log the logout event
-
-    return { message: 'Logout successful' };
+  async logout(@CurrentUser() user: CurrentUserData): Promise<{ message: string }> {
+    await this.authService.logout(user.id);
+    return { message: 'Logged out successfully' };
   }
 }

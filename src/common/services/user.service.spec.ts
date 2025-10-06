@@ -1,50 +1,60 @@
-import type { TestingModule } from '@nestjs/testing';
-import { Test } from '@nestjs/testing';
+import { Test, type TestingModule } from '@nestjs/testing';
 import { UserStatus, RoleName } from '@prisma/client';
 import * as bcrypt from 'bcrypt';
-
-import type { UserWithRoles, CreateUserData, UpdateUserData } from '../types/user.types';
 
 import { PrismaService } from './prisma.service';
 import { UserService } from './user.service';
 
 describe('UserService', () => {
-  let service: UserService;
-  let prismaService: jest.Mocked<PrismaService>;
+  let userService: UserService;
+  let mockPrismaService: {
+    user: {
+      findUnique: jest.Mock;
+      findMany: jest.Mock;
+      create: jest.Mock;
+      update: jest.Mock;
+      delete: jest.Mock;
+    };
+    userRole: {
+      create: jest.Mock;
+      delete: jest.Mock;
+    };
+    role: {
+      findUnique: jest.Mock;
+    };
+  };
 
-  const mockUser: UserWithRoles = {
-    id: '1',
+  const mockUser = {
+    id: 'user-id',
     email: 'test@example.com',
-    firstName: 'John',
-    lastName: 'Doe',
-    password: 'hashedPassword',
+    password: 'password',
+    firstName: 'Test',
+    lastName: 'User',
     status: UserStatus.ACTIVE,
-    isEmailVerified: true,
-    emailVerificationToken: null,
-    passwordResetToken: null,
-    passwordResetExpires: null,
-    lastLoginAt: null,
-    createdAt: new Date(),
-    updatedAt: new Date(),
-    userRoles: [],
+    roles: [
+      {
+        role: {
+          name: RoleName.STUDENT,
+        },
+      },
+    ],
   };
 
   beforeEach(async () => {
-    const mockPrismaService = {
+    mockPrismaService = {
       user: {
-        create: jest.fn(),
         findUnique: jest.fn(),
-        findFirst: jest.fn(),
+        findMany: jest.fn(),
+        create: jest.fn(),
         update: jest.fn(),
         delete: jest.fn(),
       },
       userRole: {
-        findMany: jest.fn(),
-        deleteMany: jest.fn(),
-        createMany: jest.fn(),
+        create: jest.fn(),
+        delete: jest.fn(),
       },
       role: {
-        findMany: jest.fn(),
+        findUnique: jest.fn(),
       },
     };
 
@@ -58,58 +68,23 @@ describe('UserService', () => {
       ],
     }).compile();
 
-    service = module.get<UserService>(UserService);
-    prismaService = module.get(PrismaService);
-
-    // Mock bcrypt
-    jest.spyOn(bcrypt, 'hash').mockResolvedValue('hashedPassword' as never);
-    jest.spyOn(bcrypt, 'compare').mockResolvedValue(true as never);
+    userService = module.get<UserService>(UserService);
   });
 
   it('should be defined', () => {
-    expect(service).toBeDefined();
+    expect(userService).toBeDefined();
   });
 
-  describe('createUser', () => {
-    it('should create a user with hashed password', async () => {
-      const userData: CreateUserData = {
-        email: 'test@example.com',
-        firstName: 'John',
-        lastName: 'Doe',
-        password: 'password123',
-      };
+  describe('findById', () => {
+    it('should return a user by id', async () => {
+      const userId = 'user-id';
+      mockPrismaService.user.findUnique.mockResolvedValue(mockUser);
 
-      (prismaService.user.create as jest.Mock).mockResolvedValue(mockUser);
-
-      const result = await service.createUser(userData);
+      const result = await userService.findById(userId);
 
       expect(result).toEqual(mockUser);
-      expect(bcrypt.hash).toHaveBeenCalledWith('password123', 12);
-      expect(prismaService.user.create).toHaveBeenCalledWith({
-        data: {
-          ...userData,
-          password: 'hashedPassword',
-        },
-        include: {
-          userRoles: {
-            include: {
-              role: true,
-            },
-          },
-        },
-      });
-    });
-  });
-
-  describe('findUserById', () => {
-    it('should return user when found', async () => {
-      (prismaService.user.findUnique as jest.Mock).mockResolvedValue(mockUser);
-
-      const result = await service.findUserById('1');
-
-      expect(result).toEqual(mockUser);
-      expect(prismaService.user.findUnique).toHaveBeenCalledWith({
-        where: { id: '1' },
+      expect(mockPrismaService.user.findUnique).toHaveBeenCalledWith({
+        where: { id: userId },
         include: {
           userRoles: {
             include: {
@@ -120,24 +95,26 @@ describe('UserService', () => {
       });
     });
 
-    it('should return null when user not found', async () => {
-      (prismaService.user.findUnique as jest.Mock).mockResolvedValue(null);
+    it('should return null if user not found', async () => {
+      const userId = 'user-id';
+      mockPrismaService.user.findUnique.mockResolvedValue(null);
 
-      const result = await service.findUserById('999');
+      const result = await userService.findById(userId);
 
       expect(result).toBeNull();
     });
   });
 
-  describe('findUserByEmail', () => {
-    it('should return user when found by email', async () => {
-      (prismaService.user.findUnique as jest.Mock).mockResolvedValue(mockUser);
+  describe('findByEmail', () => {
+    it('should return a user by email', async () => {
+      const email = 'test@example.com';
+      mockPrismaService.user.findUnique.mockResolvedValue(mockUser);
 
-      const result = await service.findUserByEmail('test@example.com');
+      const result = await userService.findByEmail(email);
 
       expect(result).toEqual(mockUser);
-      expect(prismaService.user.findUnique).toHaveBeenCalledWith({
-        where: { email: 'test@example.com' },
+      expect(mockPrismaService.user.findUnique).toHaveBeenCalledWith({
+        where: { email },
         include: {
           userRoles: {
             include: {
@@ -149,51 +126,79 @@ describe('UserService', () => {
     });
   });
 
-  describe('updateUser', () => {
-    it('should update user without password', async () => {
-      const updateData: UpdateUserData = {
-        firstName: 'Jane',
-        lastName: 'Smith',
-      };
+  describe('findAll', () => {
+    it('should return an array of users', async () => {
+      const users = [mockUser, mockUser];
+      mockPrismaService.user.findMany.mockResolvedValue(users);
 
-      (prismaService.user.update as jest.Mock).mockResolvedValue({
-        ...mockUser,
-        ...updateData,
-      });
+      const result = await userService.findAll();
 
-      const result = await service.updateUser('1', updateData);
-
-      expect(result).toEqual({ ...mockUser, ...updateData });
-      expect(prismaService.user.update).toHaveBeenCalledWith({
-        where: { id: '1' },
-        data: updateData,
-        include: {
-          userRoles: {
-            include: {
-              role: true,
-            },
-          },
-        },
-      });
+      expect(result).toEqual(users);
     });
+  });
 
-    it('should hash password when updating password', async () => {
-      const updateData: UpdateUserData = {
-        password: 'newPassword123',
+  describe('create', () => {
+    it('should create a new user', async () => {
+      const userData = {
+        email: 'test@example.com',
+        password: 'password',
+        firstName: 'Test',
+        lastName: 'User',
       };
+      const hashedPassword = 'hashed-password';
+      jest.spyOn(bcrypt, 'hash').mockResolvedValue(hashedPassword);
 
-      (prismaService.user.update as jest.Mock).mockResolvedValue(mockUser);
+      mockPrismaService.user.create.mockResolvedValue(mockUser);
+      mockPrismaService.role.findUnique.mockResolvedValue({
+        id: 'student-role-id',
+        name: RoleName.STUDENT,
+        hierarchyLevel: 1,
+      });
 
-      await service.updateUser('1', updateData);
+      const result = await userService.create(userData);
 
-      expect(bcrypt.hash).toHaveBeenCalledWith('newPassword123', 12);
-      expect(prismaService.user.update).toHaveBeenCalledWith({
-        where: { id: '1' },
+      expect(bcrypt.hash).toHaveBeenCalledWith(userData.password, 10);
+      expect(mockPrismaService.user.create).toHaveBeenCalledWith({
         data: {
-          password: 'hashedPassword',
+          ...userData,
+          password: hashedPassword,
+          roles: {
+            create: {
+              role: {
+                connect: {
+                  name: RoleName.STUDENT,
+                },
+              },
+            },
+          },
         },
         include: {
-          userRoles: {
+          roles: {
+            include: {
+              role: true,
+            },
+          },
+        },
+      });
+      expect(result).toEqual(mockUser);
+    });
+  });
+
+  describe('update', () => {
+    it('should update a user', async () => {
+      const userId = 'user-id';
+      const userData = { firstName: 'Jane' };
+      const updatedUser = { ...mockUser, ...userData };
+      mockPrismaService.user.update.mockResolvedValue(updatedUser);
+
+      const result = await userService.update(userId, userData);
+
+      expect(result).toEqual(updatedUser);
+      expect(mockPrismaService.user.update).toHaveBeenCalledWith({
+        where: { id: userId },
+        data: userData,
+        include: {
+          roles: {
             include: {
               role: true,
             },
@@ -203,61 +208,60 @@ describe('UserService', () => {
     });
   });
 
-  describe('validatePassword', () => {
-    it('should validate password correctly', async () => {
-      const result = await service.validatePassword('password123', 'hashedPassword');
+  describe('delete', () => {
+    it('should delete a user', async () => {
+      const userId = 'user-id';
+      mockPrismaService.user.delete.mockResolvedValue(mockUser);
 
-      expect(result).toBe(true);
-      expect(bcrypt.compare).toHaveBeenCalledWith('password123', 'hashedPassword');
-    });
-  });
+      const result = await userService.delete(userId);
 
-  describe('getActiveRoles', () => {
-    it('should return active roles for user', async () => {
-      const mockUserRoles = [
-        {
-          id: '1',
-          userId: '1',
-          roleId: '1',
-          isActive: true,
-          assignedAt: new Date(),
-          expiresAt: null,
-          createdAt: new Date(),
-          role: {
-            id: '1',
-            name: RoleName.ADMIN,
-            displayName: 'Administrator',
-            description: 'Admin role',
-            hierarchyLevel: 80,
-            isActive: true,
-            createdAt: new Date(),
-            updatedAt: new Date(),
-          },
-        },
-      ];
-
-      (prismaService.userRole.findMany as jest.Mock).mockResolvedValue(mockUserRoles);
-
-      const result = await service.getActiveRoles('1');
-
-      expect(result).toEqual([RoleName.ADMIN]);
-      expect(prismaService.userRole.findMany).toHaveBeenCalledWith({
-        where: {
-          userId: '1',
-          isActive: true,
-          OR: [{ expiresAt: null }, { expiresAt: { gt: expect.any(Date) } }],
-        },
-        include: {
-          role: true,
-        },
+      expect(result).toEqual(mockUser);
+      expect(mockPrismaService.user.delete).toHaveBeenCalledWith({
+        where: { id: userId },
       });
     });
   });
 
-  describe('getFullName', () => {
-    it('should return full name correctly', () => {
-      const result = service.getFullName('John', 'Doe');
-      expect(result).toBe('John Doe');
+  describe('assignRole', () => {
+    it('should assign a role to a user', async () => {
+      const userId = 'user-id';
+      const roleName = RoleName.STUDENT;
+
+      mockPrismaService.user.findUnique.mockResolvedValue(mockUser);
+      mockPrismaService.role.findUnique.mockResolvedValue({
+        id: 'role-id',
+        name: roleName,
+        hierarchyLevel: 1,
+      });
+      mockPrismaService.userRole.create.mockResolvedValue({});
+
+      await userService.assignRole(userId, roleName);
+
+      expect(mockPrismaService.userRole.create).toHaveBeenCalledWith({
+        data: {
+          user: { connect: { id: userId } },
+          role: { connect: { name: roleName } },
+        },
+      });
+    });
+
+    it('should throw an error if user does not exist', async () => {
+      const userId = 'user-id';
+      const roleName = RoleName.STUDENT;
+
+      mockPrismaService.user.findUnique.mockResolvedValue(null);
+
+      await expect(userService.assignRole(userId, roleName)).rejects.toThrow('User not found');
+    });
+
+    it('should throw an error if role does not exist', async () => {
+      const userId = 'user-id';
+      const roleName = RoleName.STUDENT;
+
+      mockPrismaService.user.findUnique.mockResolvedValue(mockUser);
+      mockPrismaService.role.findUnique.mockResolvedValue(null);
+
+      await expect(userService.assignRole(userId, roleName)).rejects.toThrow('Role not found');
     });
   });
 });

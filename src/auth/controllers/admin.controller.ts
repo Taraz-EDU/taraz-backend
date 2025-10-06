@@ -1,122 +1,109 @@
 import {
-  Controller,
-  Get,
-  Post,
   Body,
-  Param,
-  UseGuards,
+  Controller,
+  ForbiddenException,
+  Get,
   HttpCode,
   HttpStatus,
+  NotFoundException,
+  Param,
+  Patch,
+  Post,
+  UseGuards,
 } from '@nestjs/common';
-import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth } from '@nestjs/swagger';
+import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
+import { RoleName, type User } from '@prisma/client';
+import { UserService } from 'src/common/services/user.service';
+import { type UserWithRoles } from 'src/common/types/user.types';
 
-import { RoleName } from '../../common/types/user.types';
-import { CurrentUser, CurrentUserData } from '../decorators/current-user.decorator';
+import { CurrentUser } from '../decorators/current-user.decorator';
 import { Roles } from '../decorators/roles.decorator';
+import { CreateUserDto } from '../dto/create-user.dto';
+import { UpdateUserRolesDto } from '../dto/update-user-roles.dto';
+import { UpdateUserStatusDto } from '../dto/update-user-status.dto';
+import { HierarchyGuard } from '../guards/hierarchy.guard';
 import { JwtAuthGuard } from '../guards/jwt-auth.guard';
 import { RolesGuard } from '../guards/roles.guard';
-import { AuthService } from '../services/auth.service';
 
 @ApiTags('Admin')
 @Controller('admin')
-@UseGuards(JwtAuthGuard, RolesGuard)
-@ApiBearerAuth()
+@UseGuards(JwtAuthGuard, RolesGuard, HierarchyGuard)
+@ApiBearerAuth('jwt')
 export class AdminController {
-  constructor(private readonly authService: AuthService) {}
+  constructor(private readonly userService: UserService) {}
 
   @Get('users')
-  @Roles(RoleName.ADMIN, RoleName.SUPER_ADMIN)
-  @ApiOperation({
-    summary: 'Get all users (Admin only)',
-    description: 'Retrieve all users in the system. Requires admin role.',
-  })
-  @ApiResponse({
-    status: 200,
-    description: 'Users retrieved successfully',
-  })
-  @ApiResponse({
-    status: 403,
-    description: 'Access denied. Requires admin role.',
-  })
-  getAllUsers(@CurrentUser() user: CurrentUserData): {
-    message: string;
-    currentUser: CurrentUserData;
-  } {
-    return {
-      message: `Hello ${user.firstName}, you have admin access to view all users`,
-      currentUser: user,
-    };
-  }
-
-  @Post('users/:userId/roles')
-  @Roles(RoleName.SUPER_ADMIN)
+  @ApiOperation({ summary: 'Get all users' })
   @HttpCode(HttpStatus.OK)
-  @ApiOperation({
-    summary: 'Assign roles to user (Super Admin only)',
-    description: 'Assign new roles to a user. Requires super admin role.',
-  })
-  @ApiResponse({
-    status: 200,
-    description: 'Roles assigned successfully',
-  })
-  @ApiResponse({
-    status: 403,
-    description: 'Access denied. Requires super admin role.',
-  })
-  async assignRoles(
-    @Param('userId') userId: string,
-    @Body() body: { roles: RoleName[] },
-    @CurrentUser() user: CurrentUserData
-  ): Promise<{ message: string; assignedRoles: RoleName[] }> {
-    await this.authService.assignRolesToUser(userId, body.roles);
-    return {
-      message: `Roles assigned successfully by ${user.firstName}`,
-      assignedRoles: body.roles,
-    };
+  @Roles(RoleName.ADMIN, RoleName.SUPER_ADMIN)
+  getUsers(): Promise<User[]> {
+    return this.userService.findAll();
   }
 
-  @Get('profile')
+  @Post('users')
+  @ApiOperation({ summary: 'Create a new user' })
+  @HttpCode(HttpStatus.OK)
+  @Roles(RoleName.SUPER_ADMIN)
+  createUser(
+    @Body() createUserDto: CreateUserDto,
+    @CurrentUser() currentUser: UserWithRoles
+  ): Promise<User> {
+    return this.userService.create(createUserDto, [RoleName.ADMIN], currentUser);
+  }
+
+  @Patch('users/:id/status')
+  @ApiOperation({ summary: 'Update user status' })
+  @HttpCode(HttpStatus.OK)
   @Roles(RoleName.ADMIN, RoleName.TEACHER, RoleName.MENTOR, RoleName.MODERATOR)
-  @ApiOperation({
-    summary: 'Get admin profile',
-    description: 'Get profile information for admin/staff users.',
-  })
-  @ApiResponse({
-    status: 200,
-    description: 'Profile retrieved successfully',
-  })
-  getAdminProfile(@CurrentUser() user: CurrentUserData): {
-    message: string;
-    profile: CurrentUserData;
-    permissions: string[];
-  } {
-    return {
-      message: `Welcome ${user.firstName}, you have admin/staff access`,
-      profile: user,
-      permissions: this.getUserPermissions(user.roles),
-    };
+  updateUserStatus(
+    @Param('id') id: string,
+    @Body() updateUserStatusDto: UpdateUserStatusDto,
+    @CurrentUser() currentUser: UserWithRoles
+  ): Promise<User> {
+    return this.userService.updateStatus(id, updateUserStatusDto, currentUser);
   }
 
-  private getUserPermissions(roles: string[]): string[] {
-    const permissions: string[] = [];
+  @Patch('users/:id/roles')
+  @ApiOperation({ summary: 'Update user roles' })
+  @HttpCode(HttpStatus.OK)
+  async updateUserRoles(
+    @Param('id') id: string,
+    @Body() updateUserRolesDto: UpdateUserRolesDto,
+    @CurrentUser() currentUser: UserWithRoles
+  ): Promise<UserWithRoles | null> {
+    const { roles } = updateUserRolesDto;
 
-    if (roles.includes(RoleName.SUPER_ADMIN)) {
-      permissions.push('all');
-    } else {
-      if (roles.includes(RoleName.ADMIN)) {
-        permissions.push('manage_users', 'manage_content', 'view_analytics');
-      }
-      if (roles.includes(RoleName.TEACHER)) {
-        permissions.push('create_courses', 'manage_students', 'grade_assignments');
-      }
-      if (roles.includes(RoleName.MENTOR)) {
-        permissions.push('guide_students', 'provide_feedback');
-      }
-      if (roles.includes(RoleName.MODERATOR)) {
-        permissions.push('moderate_content', 'manage_forum');
-      }
+    const rolePermissions: Partial<Record<RoleName, RoleName[]>> = {
+      [RoleName.SUPER_ADMIN]: Object.values(RoleName),
+      [RoleName.ADMIN]: [RoleName.TEACHER, RoleName.MENTOR, RoleName.MODERATOR, RoleName.STUDENT],
+    };
+
+    const userRoles: RoleName[] = currentUser.userRoles.map(userRole => userRole.role.name);
+    const allowedRoles: RoleName[] = userRoles
+      .map((role): RoleName[] => rolePermissions[role] ?? [])
+      .flat();
+
+    if (!roles.every(role => allowedRoles.includes(role))) {
+      throw new ForbiddenException(
+        'You do not have permission to assign one or more of the specified roles.'
+      );
+    }
+    const user = await this.userService.findById(id);
+
+    if (!user) {
+      throw new NotFoundException('User not found');
     }
 
-    return permissions;
+    const currentRoles: RoleName[] = user.userRoles.map(userRole => userRole.role.name);
+
+    const rolesToAdd: RoleName[] = roles.filter(role => !currentRoles.includes(role));
+    const rolesToRemove: RoleName[] = currentRoles.filter(role => !roles.includes(role));
+
+    await Promise.all([
+      ...rolesToAdd.map(role => this.userService.assignRole(id, role)),
+      ...rolesToRemove.map(role => this.userService.removeRole(id, role)),
+    ]);
+
+    return this.userService.findById(id);
   }
 }

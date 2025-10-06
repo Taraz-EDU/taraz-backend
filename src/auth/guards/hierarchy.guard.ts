@@ -1,18 +1,16 @@
 import { Injectable, CanActivate, ExecutionContext, ForbiddenException } from '@nestjs/common';
 import { Reflector } from '@nestjs/core';
+import type { Role, RoleName } from '@prisma/client';
+import { Observable } from 'rxjs';
+import type { RequestWithUser } from 'src/common/types/user.types';
 
-import { PrismaService } from '../../common/services/prisma.service';
-import { RoleName } from '../../common/types/user.types';
 import { ROLES_KEY } from '../decorators/roles.decorator';
 
 @Injectable()
 export class HierarchyGuard implements CanActivate {
-  constructor(
-    private reflector: Reflector,
-    private readonly prisma: PrismaService
-  ) {}
+  constructor(private readonly reflector: Reflector) {}
 
-  async canActivate(context: ExecutionContext): Promise<boolean> {
+  canActivate(context: ExecutionContext): boolean | Promise<boolean> | Observable<boolean> {
     const requiredRoles = this.reflector.getAllAndOverride<RoleName[]>(ROLES_KEY, [
       context.getHandler(),
       context.getClass(),
@@ -22,47 +20,28 @@ export class HierarchyGuard implements CanActivate {
       return true;
     }
 
-    const { user } = context.switchToHttp().getRequest();
+    const { user } = context.switchToHttp().getRequest<RequestWithUser>();
+
     if (!user) {
       throw new ForbiddenException('User not authenticated');
     }
 
-    const userRoles = user.roles ?? [];
+    const userRoles: Role[] = user.userRoles?.map(userRole => userRole.role) ?? [];
+    const userRoleNames: RoleName[] = userRoles.map(role => role.name);
 
-    // Get role hierarchy information
-    const allRoles = await this.prisma.role.findMany({
-      where: { isActive: true },
-      orderBy: { hierarchyLevel: 'desc' },
-    });
+    const hasRequiredRole = requiredRoles.some(requiredRole =>
+      userRoleNames.includes(requiredRole)
+    );
 
-    const roleHierarchy = new Map<string, number>();
-    allRoles.forEach(role => {
-      roleHierarchy.set(role.name, role.hierarchyLevel);
-    });
-
-    // Check if user has required role or higher level role
-    const userRoleLevels = userRoles
-      .map((role: string) => roleHierarchy.get(role))
-      .filter((level: number | undefined): level is number => level !== undefined)
-      .sort((a: number, b: number) => b - a); // Sort descending to get highest level
-
-    const requiredRoleLevels = requiredRoles
-      .map((role: RoleName) => roleHierarchy.get(role))
-      .filter((level: number | undefined): level is number => level !== undefined);
-
-    if (userRoleLevels.length === 0 || requiredRoleLevels.length === 0) {
-      throw new ForbiddenException('Unable to determine role hierarchy');
+    if (!hasRequiredRole) {
+      return false;
     }
 
-    const userHighestLevel = userRoleLevels[0] as number;
-    const minRequiredLevel = Math.min(...requiredRoleLevels);
+    const targetUserRoleLevels = requiredRoles.map(
+      roleName => userRoles.find(role => role.name === roleName)?.hierarchyLevel ?? 0
+    );
+    const userHighestRoleLevel = Math.max(...userRoles.map(role => role.hierarchyLevel));
 
-    if (userHighestLevel < minRequiredLevel) {
-      throw new ForbiddenException(
-        `Access denied. Required minimum hierarchy level: ${minRequiredLevel}. Your highest level: ${userHighestLevel}`
-      );
-    }
-
-    return true;
+    return targetUserRoleLevels.every(targetLevel => userHighestRoleLevel >= targetLevel);
   }
 }

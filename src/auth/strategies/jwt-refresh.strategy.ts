@@ -1,18 +1,12 @@
-import { Injectable, UnauthorizedException } from '@nestjs/common';
+import { ForbiddenException, Injectable, UnauthorizedException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { PassportStrategy } from '@nestjs/passport';
-import { Strategy, ExtractJwt } from 'passport-jwt';
+import { UserStatus } from '@prisma/client';
+import { ExtractJwt, Strategy } from 'passport-jwt';
+import { UserService } from 'src/common/services/user.service';
+import { type UserWithRoles } from 'src/common/types/user.types';
 
-import { UserService } from '../../common/services/user.service';
-import { UserStatus } from '../../common/types/user.types';
-
-export interface JwtRefreshPayload {
-  sub: string;
-  email: string;
-  tokenVersion: number;
-  iat?: number;
-  exp?: number;
-}
+import type { JwtPayload } from './jwt.strategy';
 
 @Injectable()
 export class JwtRefreshStrategy extends PassportStrategy(Strategy, 'jwt-refresh') {
@@ -20,44 +14,24 @@ export class JwtRefreshStrategy extends PassportStrategy(Strategy, 'jwt-refresh'
     private readonly configService: ConfigService,
     private readonly userService: UserService
   ) {
-    const secret = configService.get<string>('auth.jwtRefresh.secret') ?? 'fallback-refresh-secret';
     super({
       jwtFromRequest: ExtractJwt.fromAuthHeaderAsBearerToken(),
-      ignoreExpiration: false,
-      secretOrKey: secret,
+      secretOrKey: configService.get<string>('auth.refreshTokenSecret'),
     });
   }
 
-  async validate(payload: JwtRefreshPayload): Promise<{
-    id: string;
-    email: string;
-    firstName: string;
-    lastName: string;
-    status: string;
-    isEmailVerified: boolean;
-  }> {
-    const { sub: userId, email } = payload;
+  async validate(payload: JwtPayload): Promise<UserWithRoles> {
+    const { sub: userId } = payload;
+    const user = await this.userService.findById(userId);
 
-    const user = await this.userService.findUserById(userId);
-
-    if (!user || user.email !== email) {
-      throw new UnauthorizedException('User not found');
+    if (!user) {
+      throw new UnauthorizedException('Invalid token');
     }
 
     if (user.status !== UserStatus.ACTIVE) {
-      throw new UnauthorizedException('User account is not active');
+      throw new ForbiddenException('User account is not active. Please contact support.');
     }
 
-    // Check token version for additional security (for now we'll skip this check)
-    // In a real implementation, you might want to store tokenVersion in the user table
-
-    return {
-      id: user.id,
-      email: user.email,
-      firstName: user.firstName,
-      lastName: user.lastName,
-      status: user.status,
-      isEmailVerified: user.isEmailVerified,
-    };
+    return user;
   }
 }

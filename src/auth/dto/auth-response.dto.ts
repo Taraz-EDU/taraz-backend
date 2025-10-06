@@ -1,96 +1,143 @@
 import { ApiProperty } from '@nestjs/swagger';
+import { UserStatus, type RoleName } from '@prisma/client';
+import { type UserWithRoles } from 'src/common/types/user.types';
 
-import { UserStatus, RoleName } from '../../common/types/user.types';
-
-export class UserResponseDto {
+class UserAuthResponseDto {
   @ApiProperty({
-    description: 'User ID',
-    example: '123e4567-e89b-12d3-a456-426614174000',
+    description: "The user's ID.",
+    example: 'clx......',
   })
-  id!: string;
+  id: string;
 
   @ApiProperty({
-    description: 'User email address',
-    example: 'user@example.com',
+    description: "The user's email address.",
+    example: 'email@example.com',
   })
-  email!: string;
+  email: string;
 
   @ApiProperty({
-    description: 'User first name',
+    description: "The user's first name.",
     example: 'John',
   })
-  firstName!: string;
+  firstName: string;
 
   @ApiProperty({
-    description: 'User last name',
+    description: "The user's last name.",
     example: 'Doe',
   })
-  lastName!: string;
+  lastName: string;
 
   @ApiProperty({
-    description: 'User full name',
-    example: 'John Doe',
-  })
-  fullName!: string;
-
-  @ApiProperty({
-    description: 'User status',
-    enum: UserStatus,
+    description: "The user's status.",
     example: UserStatus.ACTIVE,
+    enum: UserStatus,
   })
-  status!: UserStatus;
+  status: UserStatus;
 
   @ApiProperty({
-    description: 'Whether email is verified',
+    description: 'Whether the user has verified their email.',
     example: true,
   })
-  isEmailVerified!: boolean;
+  isEmailVerified: boolean;
 
   @ApiProperty({
-    description: 'User roles',
-    type: [String],
-    enum: RoleName,
-    example: ['student', 'teacher'],
+    description: "The user's roles.",
+    example: ['STUDENT'],
   })
-  roles!: RoleName[];
+  roles: RoleName[];
 
-  @ApiProperty({
-    description: 'User creation timestamp',
-    example: '2023-01-01T00:00:00.000Z',
-  })
-  createdAt!: Date;
-
-  @ApiProperty({
-    description: 'User last update timestamp',
-    example: '2023-01-01T00:00:00.000Z',
-  })
-  updatedAt!: Date;
+  constructor(user: UserWithRoles, roles: RoleName[]) {
+    this.id = user.id;
+    this.email = user.email;
+    this.firstName = user.firstName;
+    this.lastName = user.lastName;
+    this.status = user.status;
+    this.isEmailVerified = user.isEmailVerified;
+    this.roles = roles;
+  }
 }
 
 export class AuthResponseDto {
   @ApiProperty({
-    description: 'JWT access token',
-    example: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...',
+    description: 'The JWT access token.',
+    example: 'ey...',
   })
-  accessToken!: string;
+  accessToken: string;
 
   @ApiProperty({
-    description: 'JWT refresh token',
-    example: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...',
+    description: 'The JWT refresh token.',
+    example: 'ey...',
   })
-  refreshToken!: string;
+  refreshToken: string;
 
   @ApiProperty({
-    description: 'Token expiration time in seconds',
-    example: 3600,
+    description: 'The user information.',
+    type: UserAuthResponseDto,
   })
-  expiresIn!: number;
+  user: UserAuthResponseDto;
+
+  constructor(user: UserWithRoles, accessToken: string, refreshToken: string) {
+    const roles = user.userRoles?.map(userRole => userRole.role.name) ?? [];
+    this.accessToken = accessToken;
+    this.refreshToken = refreshToken;
+    this.user = new UserAuthResponseDto(user, roles);
+  }
+}
+
+export class UserResponseDto {
+  @ApiProperty({
+    description: "The user's ID.",
+    example: 'clx......',
+  })
+  id: string;
 
   @ApiProperty({
-    description: 'User information',
-    type: UserResponseDto,
+    description: "The user's email address.",
+    example: 'email@example.com',
   })
-  user!: UserResponseDto;
+  email: string;
+
+  @ApiProperty({
+    description: "The user's first name.",
+    example: 'John',
+  })
+  firstName: string;
+
+  @ApiProperty({
+    description: "The user's last name.",
+    example: 'Doe',
+  })
+  lastName: string;
+
+  @ApiProperty({
+    description: "The user's status.",
+    example: UserStatus.ACTIVE,
+    enum: UserStatus,
+  })
+  status: UserStatus;
+
+  @ApiProperty({
+    description: 'Whether the user has verified their email.',
+    example: true,
+  })
+  isEmailVerified: boolean;
+
+  @ApiProperty({
+    description: "The user's roles.",
+    example: ['STUDENT'],
+  })
+  roles: RoleName[];
+
+  constructor(user: UserWithRoles) {
+    const roles = user.userRoles?.map(userRole => userRole.role.name) ?? [];
+    this.id = user.id;
+    this.email = user.email;
+    this.firstName = user.firstName;
+    this.lastName = user.lastName;
+    this.status = user.status;
+    this.isEmailVerified = user.isEmailVerified;
+    this.roles = roles;
+  }
 }
 
 export class MessageResponseDto {

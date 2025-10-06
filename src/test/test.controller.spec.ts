@@ -1,5 +1,4 @@
-import type { TestingModule } from '@nestjs/testing';
-import { Test } from '@nestjs/testing';
+import { Test, type TestingModule } from '@nestjs/testing';
 
 import { TestController } from './test.controller';
 
@@ -19,15 +18,15 @@ describe('TestController', () => {
   });
 
   describe('getTest', () => {
-    it('should return test message without name', () => {
-      const result = controller.getTest();
+    it('should return test message without name', async () => {
+      const result = await controller.getTest();
       expect(result.message).toBe('Hello World! This is a test endpoint.');
       expect(result.timestamp).toBeDefined();
       expect(result.data).toBeDefined();
     });
 
-    it('should return test message with name', () => {
-      const result = controller.getTest('John');
+    it('should return test message with name', async () => {
+      const result = await controller.getTest('John');
       expect(result.message).toBe('Hello John! This is a test endpoint.');
       expect(result.timestamp).toBeDefined();
       expect(result.data).toBeDefined();
@@ -39,8 +38,8 @@ describe('TestController', () => {
       const result = controller.getTestById('123');
       expect(result.message).toBe('Test data for ID: 123');
       expect(result.timestamp).toBeDefined();
-      expect(result.data.id).toBe('123');
-      expect(result.data.status).toBe('active');
+      expect(result.data?.id).toBe('123');
+      expect(result.data?.status).toBe('active');
     });
   });
 
@@ -50,10 +49,10 @@ describe('TestController', () => {
       const result = controller.createTest(testData);
       expect(result.message).toBe('Test data created successfully');
       expect(result.timestamp).toBeDefined();
-      expect(result.data.name).toBe('John');
-      expect(result.data.email).toBe('john@example.com');
-      expect(result.data.status).toBe('created');
-      expect(result.data.id).toBeDefined();
+      expect(result.data?.name).toBe('John');
+      expect(result.data?.email).toBe('john@example.com');
+      expect(result.data?.status).toBe('created');
+      expect(result.data?.id).toBeDefined();
     });
   });
 });

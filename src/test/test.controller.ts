@@ -4,15 +4,34 @@ import { ApiTags, ApiOperation, ApiResponse, ApiParam, ApiQuery, ApiBody } from 
 import { Public } from '../auth/decorators/public.decorator';
 import { PrismaService } from '../common/services/prisma.service';
 
-export class TestResponseDto {
+export class TestResponseDto<T = unknown> {
   message!: string;
   timestamp!: string;
-  data?: unknown;
+  data?: T;
 }
 
 export class TestRequestDto {
   name!: string;
   email!: string;
+}
+
+class GetTestDataDto {
+  environment!: string;
+  nodeVersion!: string;
+  uptime!: number;
+  databaseConnected!: boolean;
+  roleCount!: number;
+}
+
+class GetTestByIdDataDto {
+  id!: string;
+  status!: string;
+  createdAt!: string;
+}
+
+class CreateTestDataDto extends TestRequestDto {
+  id!: string;
+  status!: string;
 }
 
 @ApiTags('Test')
@@ -32,7 +51,7 @@ export class TestController {
     required: false,
     description: 'Optional name parameter',
   })
-  async getTest(@Query('name') name?: string): Promise<TestResponseDto> {
+  async getTest(@Query('name') name?: string): Promise<TestResponseDto<GetTestDataDto>> {
     // Test database connection by counting roles
     const roleCount = await this.prisma.role.count();
 
@@ -57,7 +76,7 @@ export class TestController {
     description: 'Test data retrieved successfully',
     type: TestResponseDto,
   })
-  getTestById(@Param('id') id: string): TestResponseDto {
+  getTestById(@Param('id') id: string): TestResponseDto<GetTestByIdDataDto> {
     return {
       message: `Test data for ID: ${id}`,
       timestamp: new Date().toISOString(),
@@ -77,7 +96,7 @@ export class TestController {
     description: 'Test data created successfully',
     type: TestResponseDto,
   })
-  createTest(@Body() testData: TestRequestDto): TestResponseDto {
+  createTest(@Body() testData: TestRequestDto): TestResponseDto<CreateTestDataDto> {
     return {
       message: 'Test data created successfully',
       timestamp: new Date().toISOString(),
