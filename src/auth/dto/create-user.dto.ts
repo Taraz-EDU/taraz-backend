@@ -8,7 +8,7 @@ export class CreateUserDto {
   })
   @IsEmail({}, { message: 'Please provide a valid email address' })
   @IsNotEmpty({ message: 'Email is required' })
-  email: string;
+  email!: string;
 
   @ApiProperty({
     description: 'User password',
@@ -20,7 +20,7 @@ export class CreateUserDto {
     message:
       'Password must contain at least one uppercase letter, one lowercase letter, one number, and one special character',
   })
-  password: string;
+  password!: string;
 
   @ApiProperty({
     description: 'User first name',
@@ -29,7 +29,7 @@ export class CreateUserDto {
   @IsString()
   @Length(2, 100, { message: 'First name must be between 2 and 100 characters' })
   @IsNotEmpty({ message: 'First name is required' })
-  firstName: string;
+  firstName!: string;
 
   @ApiProperty({
     description: 'User last name',
@@ -38,5 +38,5 @@ export class CreateUserDto {
   @IsString()
   @Length(2, 100, { message: 'Last name must be between 2 and 100 characters' })
   @IsNotEmpty({ message: 'Last name is required' })
-  lastName: string;
+  lastName!: string;
 }

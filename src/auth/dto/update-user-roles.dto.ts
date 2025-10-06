@@ -12,5 +12,5 @@ export class UpdateUserRolesDto {
   @IsArray({ message: 'Roles must be an array' })
   @IsEnum(RoleName, { each: true, message: 'Each role must be a valid RoleName' })
   @IsNotEmpty({ message: 'Roles array cannot be empty' })
-  roles: RoleName[];
+  roles!: RoleName[];
 }

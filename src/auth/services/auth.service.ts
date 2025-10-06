@@ -71,19 +71,28 @@ export class AuthService {
     userId: string,
     email: string
   ): Promise<{ accessToken: string; refreshToken: string }> {
+    const accessTokenSecret = this.configService.get<string>('auth.accessTokenSecret');
+    const accessTokenExpires = this.configService.get<string>('auth.accessTokenExpires');
+    const refreshTokenSecret = this.configService.get<string>('auth.refreshTokenSecret');
+    const refreshTokenExpires = this.configService.get<string>('auth.refreshTokenExpires');
+
+    if (!accessTokenSecret || !refreshTokenSecret) {
+      throw new Error('JWT secrets are not configured');
+    }
+
     const [accessToken, refreshToken] = await Promise.all([
       this.jwtService.signAsync(
         { sub: userId, email },
         {
-          secret: this.configService.get<string>('auth.accessTokenSecret'),
-          expiresIn: this.configService.get<string>('auth.accessTokenExpires'),
+          secret: accessTokenSecret,
+          expiresIn: accessTokenExpires ?? '15m',
         }
       ),
       this.jwtService.signAsync(
         { sub: userId, email },
         {
-          secret: this.configService.get<string>('auth.refreshTokenSecret'),
-          expiresIn: this.configService.get<string>('auth.refreshTokenExpires'),
+          secret: refreshTokenSecret,
+          expiresIn: refreshTokenExpires ?? '7d',
         }
       ),
     ]);

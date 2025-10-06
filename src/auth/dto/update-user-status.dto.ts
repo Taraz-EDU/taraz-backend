@@ -10,5 +10,5 @@ export class UpdateUserStatusDto {
   })
   @IsEnum(UserStatus, { message: 'Invalid user status' })
   @IsNotEmpty({ message: 'Status is required' })
-  status: UserStatus;
+  status!: UserStatus;
 }

@@ -11,16 +11,22 @@ describe('UserService', () => {
     user: {
       findUnique: jest.Mock;
       findMany: jest.Mock;
+      findFirst: jest.Mock;
       create: jest.Mock;
       update: jest.Mock;
       delete: jest.Mock;
     };
     userRole: {
       create: jest.Mock;
+      createMany: jest.Mock;
       delete: jest.Mock;
+      deleteMany: jest.Mock;
+      findMany: jest.Mock;
+      findUnique: jest.Mock;
     };
     role: {
       findUnique: jest.Mock;
+      findMany: jest.Mock;
     };
   };
 
@@ -45,16 +51,22 @@ describe('UserService', () => {
       user: {
         findUnique: jest.fn(),
         findMany: jest.fn(),
+        findFirst: jest.fn(),
         create: jest.fn(),
         update: jest.fn(),
         delete: jest.fn(),
       },
       userRole: {
         create: jest.fn(),
+        createMany: jest.fn(),
         delete: jest.fn(),
+        deleteMany: jest.fn(),
+        findMany: jest.fn(),
+        findUnique: jest.fn(),
       },
       role: {
         findUnique: jest.fn(),
+        findMany: jest.fn(),
       },
     };
 
@@ -146,16 +158,25 @@ describe('UserService', () => {
         lastName: 'User',
       };
       const hashedPassword = 'hashed-password';
-      jest.spyOn(bcrypt, 'hash').mockResolvedValue(hashedPassword);
+      (jest.spyOn(bcrypt, 'hash') as jest.Mock).mockResolvedValue(hashedPassword);
 
       mockPrismaService.user.create.mockResolvedValue(mockUser);
-      mockPrismaService.role.findUnique.mockResolvedValue({
-        id: 'student-role-id',
-        name: RoleName.STUDENT,
-        hierarchyLevel: 1,
-      });
+      mockPrismaService.role.findMany.mockResolvedValue([
+        {
+          id: 'student-role-id',
+          name: RoleName.STUDENT,
+          displayName: 'Student',
+          description: 'Student role',
+          hierarchyLevel: 1,
+          isActive: true,
+          createdAt: new Date(),
+          updatedAt: new Date(),
+        },
+      ]);
+      mockPrismaService.user.findUnique.mockResolvedValue(null);
+      mockPrismaService.userRole.createMany.mockResolvedValue({ count: 1 });
 
-      const result = await userService.create(userData);
+      const result = await userService.create(userData, [RoleName.STUDENT]);
 
       expect(bcrypt.hash).toHaveBeenCalledWith(userData.password, 10);
       expect(mockPrismaService.user.create).toHaveBeenCalledWith({

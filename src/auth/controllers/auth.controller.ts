@@ -11,13 +11,13 @@ import {
 import { ApiTags, ApiOperation, ApiResponse, ApiBody, ApiBearerAuth } from '@nestjs/swagger';
 import { type RequestWithUser } from 'src/common/types/user.types';
 
-import { type CurrentUserData } from '../decorators/current-user.decorator';
+import { CurrentUser, type CurrentUserData } from '../decorators/current-user.decorator';
 import { Public } from '../decorators/public.decorator';
 import { AuthResponseDto, UserResponseDto } from '../dto/auth-response.dto';
-import { type ForgotPasswordDto } from '../dto/forgot-password.dto';
-import { type RegisterDto } from '../dto/register.dto';
-import { type ResetPasswordDto } from '../dto/reset-password.dto';
-import { type VerifyEmailDto } from '../dto/verify-email.dto';
+import { ForgotPasswordDto } from '../dto/forgot-password.dto';
+import { RegisterDto } from '../dto/register.dto';
+import { ResetPasswordDto } from '../dto/reset-password.dto';
+import { VerifyEmailDto } from '../dto/verify-email.dto';
 import { JwtAuthGuard } from '../guards/jwt-auth.guard';
 import { JwtRefreshGuard } from '../guards/jwt-refresh.guard';
 import { AuthService } from '../services/auth.service';
@@ -243,7 +243,6 @@ export class AuthController {
     description: 'Unauthorized',
   })
   @ApiBearerAuth()
-  // eslint-disable-next-line @typescript-eslint/no-unsafe-call -- NestJS decorator, properly typed
   getProfile(@CurrentUser() user: CurrentUserData): UserResponseDto {
     return new UserResponseDto(user);
   }
@@ -269,7 +268,6 @@ export class AuthController {
     },
   })
   @ApiBearerAuth()
-  // eslint-disable-next-line @typescript-eslint/no-unsafe-call -- NestJS decorator, properly typed
   async logout(@CurrentUser() user: CurrentUserData): Promise<{ message: string }> {
     await this.authService.logout(user.id);
     return { message: 'Logged out successfully' };

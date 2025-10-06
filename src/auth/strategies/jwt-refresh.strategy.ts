@@ -11,7 +11,7 @@ import type { JwtPayload } from './jwt.strategy';
 @Injectable()
 export class JwtRefreshStrategy extends PassportStrategy(Strategy, 'jwt-refresh') {
   constructor(
-    private readonly configService: ConfigService,
+    configService: ConfigService,
     private readonly userService: UserService
   ) {
     super({
