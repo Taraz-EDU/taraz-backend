@@ -1,0 +1,112 @@
+# Cursor Rules for Taraz Backend
+
+## TypeScript & NestJS Standards
+
+### Strict TypeScript Rules
+- NEVER use `any` type - use proper typing or `unknown` when necessary
+- NEVER use type casting with `as` - use proper type guards and validation
+- ALWAYS use strict TypeScript settings
+- ALWAYS define explicit return types for public methods
+- ALWAYS use interfaces for object shapes
+- ALWAYS use type imports when importing types: `import type { User } from './types'`
+
+### NestJS Best Practices
+- Follow NestJS conventions for file naming (kebab-case for files, PascalCase for classes)
+- Use dependency injection throughout the application
+- Keep controllers thin - delegate business logic to services
+- Use proper HTTP status codes
+- Implement proper error handling with custom exceptions
+- Use guards for authentication and authorization
+- Use interceptors for cross-cutting concerns
+
+### Code Organization
+- Use absolute imports with path mapping (`@/common/*`, `@/modules/*`)
+- Group imports: external libraries, internal modules, relative imports
+- One class per file
+- Use barrel exports for clean module interfaces
+- Keep functions small and focused on single responsibility
+
+### Error Handling
+- Use custom error classes that extend appropriate base classes
+- Always handle promises properly (use try/catch or .catch())
+- Log errors with proper context
+- Use Result types for operations that can fail
+- Never expose internal errors to clients
+
+### Testing Requirements
+- Write unit tests for all services and utilities
+- Use descriptive test names that explain the scenario
+- Test both success and error cases
+- Mock external dependencies appropriately
+- Aim for 80%+ code coverage
+- Use AAA pattern (Arrange, Act, Assert)
+
+### Security
+- Validate all inputs with DTOs and class-validator
+- Use parameterized queries (Prisma handles this)
+- Never log sensitive information
+- Use proper authentication and authorization
+- Implement rate limiting where appropriate
+
+### Database (Prisma)
+- Use Prisma Client for all database operations
+- Use transactions for multi-table operations
+- Implement proper error handling for database operations
+- Use type-safe queries and avoid raw SQL when possible
+- Cache frequently accessed data appropriately
+
+### Performance
+- Use async/await properly
+- Implement caching strategies
+- Use database indexes strategically
+- Monitor memory usage and optimize accordingly
+- Use streaming for large file operations
+
+### Documentation
+- Use JSDoc for public APIs
+- Document complex business logic
+- Include examples in documentation
+- Keep README files updated
+- Document environment variables
+
+## File Structure Rules
+```
+src/
+├── common/           # Shared utilities, services, types
+├── modules/          # Feature modules (auth, users, etc.)
+├── config/           # Configuration files
+└── main.ts           # Application entry point
+```
+
+## Naming Conventions
+- Files: kebab-case (user.service.ts, auth.controller.ts)
+- Classes: PascalCase (UserService, AuthController)
+- Variables/functions: camelCase (getUserById, isAuthenticated)
+- Constants: UPPER_SNAKE_CASE (MAX_RETRY_ATTEMPTS)
+- Interfaces: PascalCase with descriptive names (UserWithRoles, CreateUserData)
+
+## Import Order
+1. Node.js built-in modules
+2. External libraries (NestJS, Prisma, etc.)
+3. Internal modules (using @/ aliases)
+4. Relative imports
+
+## Commit Message Format
+- feat: new feature
+- fix: bug fix
+- docs: documentation changes
+- style: formatting changes
+- refactor: code refactoring
+- test: adding tests
+- chore: maintenance tasks
+
+## Code Review Checklist
+- [ ] No `any` types used
+- [ ] No type casting with `as`
+- [ ] Proper error handling
+- [ ] Unit tests written
+- [ ] TypeScript compilation passes
+- [ ] ESLint passes
+- [ ] Prettier formatting applied
+- [ ] Security considerations addressed
+- [ ] Performance implications considered

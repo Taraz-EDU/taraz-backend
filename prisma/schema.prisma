@@ -1,0 +1,81 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+// Prisma seed configuration
+// npx prisma db seed
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum UserStatus {
+  ACTIVE
+  INACTIVE
+  PENDING_VERIFICATION
+  SUSPENDED
+}
+
+enum RoleName {
+  SUPER_ADMIN
+  ADMIN
+  TEACHER
+  MENTOR
+  STUDENT
+  MODERATOR
+}
+
+model User {
+  id                     String      @id @default(uuid())
+  email                  String      @unique @db.VarChar(255)
+  firstName              String      @db.VarChar(100)
+  lastName               String      @db.VarChar(100)
+  password               String      @db.VarChar(255)
+  status                 UserStatus  @default(PENDING_VERIFICATION)
+  isEmailVerified        Boolean     @default(false)
+  emailVerificationToken String?     @db.VarChar(255)
+  passwordResetToken     String?     @db.VarChar(255)
+  passwordResetExpires   DateTime?
+  lastLoginAt            DateTime?
+  createdAt              DateTime    @default(now())
+  updatedAt              DateTime    @updatedAt
+
+  userRoles UserRole[]
+
+  @@map("users")
+}
+
+model Role {
+  id            String   @id @default(uuid())
+  name          RoleName @unique
+  displayName   String   @db.VarChar(255)
+  description   String?  @db.Text
+  hierarchyLevel Int     @default(0)
+  isActive      Boolean  @default(true)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  userRoles UserRole[]
+
+  @@map("roles")
+}
+
+model UserRole {
+  id         String   @id @default(uuid())
+  userId     String
+  roleId     String
+  isActive   Boolean  @default(true)
+  assignedAt DateTime?
+  expiresAt  DateTime?
+  createdAt  DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  role Role @relation(fields: [roleId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, roleId])
+  @@map("user_roles")
+}

@@ -2,10 +2,10 @@ import { Controller, Get } from '@nestjs/common';
 import { ApiOperation, ApiResponse, ApiTags } from '@nestjs/swagger';
 
 export class HealthResponseDto {
-  status: string;
-  timestamp: string;
-  uptime: number;
-  memory: {
+  status!: string;
+  timestamp!: string;
+  uptime!: number;
+  memory!: {
     rss: string;
     heapTotal: string;
     heapUsed: string;

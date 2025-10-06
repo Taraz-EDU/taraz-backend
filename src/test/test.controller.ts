@@ -1,27 +1,25 @@
 import { Controller, Get, Post, Body, Param, Query } from '@nestjs/common';
-import {
-  ApiTags,
-  ApiOperation,
-  ApiResponse,
-  ApiParam,
-  ApiQuery,
-  ApiBody,
-} from '@nestjs/swagger';
+import { ApiTags, ApiOperation, ApiResponse, ApiParam, ApiQuery, ApiBody } from '@nestjs/swagger';
+
+import { Public } from '../auth/decorators/public.decorator';
+import { PrismaService } from '../common/services/prisma.service';
 
 export class TestResponseDto {
-  message: string;
-  timestamp: string;
-  data?: any;
+  message!: string;
+  timestamp!: string;
+  data?: unknown;
 }
 
 export class TestRequestDto {
-  name: string;
-  email: string;
+  name!: string;
+  email!: string;
 }
 
 @ApiTags('Test')
 @Controller('test')
 export class TestController {
+  constructor(private readonly prisma: PrismaService) {}
+  @Public()
   @Get()
   @ApiOperation({ summary: 'Get test message' })
   @ApiResponse({
@@ -34,14 +32,19 @@ export class TestController {
     required: false,
     description: 'Optional name parameter',
   })
-  getTest(@Query('name') name?: string): TestResponseDto {
+  async getTest(@Query('name') name?: string): Promise<TestResponseDto> {
+    // Test database connection by counting roles
+    const roleCount = await this.prisma.role.count();
+
     return {
-      message: `Hello ${name || 'World'}! This is a test endpoint.`,
+      message: `Hello ${name ?? 'World'}! This is a test endpoint.`,
       timestamp: new Date().toISOString(),
       data: {
-        environment: process.env.NODE_ENV || 'development',
+        environment: process.env['NODE_ENV'] ?? 'development',
         nodeVersion: process.version,
         uptime: process.uptime(),
+        databaseConnected: true,
+        roleCount,
       },
     };
   }
