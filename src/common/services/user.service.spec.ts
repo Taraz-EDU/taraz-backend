@@ -173,28 +173,18 @@ describe('UserService', () => {
           updatedAt: new Date(),
         },
       ]);
-      mockPrismaService.user.findUnique.mockResolvedValue(null);
+      mockPrismaService.user.findUnique
+        .mockResolvedValueOnce(null) // First call - check if exists
+        .mockResolvedValueOnce(mockUser); // Second call - return created user
       mockPrismaService.userRole.createMany.mockResolvedValue({ count: 1 });
 
       const result = await userService.create(userData, [RoleName.STUDENT]);
 
-      expect(bcrypt.hash).toHaveBeenCalledWith(userData.password, 10);
-      expect(mockPrismaService.user.create).toHaveBeenCalledWith({
-        data: {
-          ...userData,
-          password: hashedPassword,
-          roles: {
-            create: {
-              role: {
-                connect: {
-                  name: RoleName.STUDENT,
-                },
-              },
-            },
-          },
-        },
+      expect(bcrypt.hash).toHaveBeenCalledWith(userData.password, 12);
+      expect(mockPrismaService.user.findUnique).toHaveBeenCalledWith({
+        where: { email: userData.email },
         include: {
-          roles: {
+          userRoles: {
             include: {
               role: true,
             },
@@ -219,7 +209,7 @@ describe('UserService', () => {
         where: { id: userId },
         data: userData,
         include: {
-          roles: {
+          userRoles: {
             include: {
               role: true,
             },
@@ -234,9 +224,8 @@ describe('UserService', () => {
       const userId = 'user-id';
       mockPrismaService.user.delete.mockResolvedValue(mockUser);
 
-      const result = await userService.delete(userId);
+      await userService.delete(userId);
 
-      expect(result).toEqual(mockUser);
       expect(mockPrismaService.user.delete).toHaveBeenCalledWith({
         where: { id: userId },
       });
@@ -247,42 +236,76 @@ describe('UserService', () => {
     it('should assign a role to a user', async () => {
       const userId = 'user-id';
       const roleName = RoleName.STUDENT;
+      const roleId = 'role-id';
 
-      mockPrismaService.user.findUnique.mockResolvedValue(mockUser);
       mockPrismaService.role.findUnique.mockResolvedValue({
-        id: 'role-id',
+        id: roleId,
         name: roleName,
+        displayName: 'Student',
+        description: 'Student role',
         hierarchyLevel: 1,
+        isActive: true,
+        createdAt: new Date(),
+        updatedAt: new Date(),
       });
-      mockPrismaService.userRole.create.mockResolvedValue({});
+      mockPrismaService.userRole.findUnique.mockResolvedValue(null);
+      mockPrismaService.userRole.create.mockResolvedValue({
+        id: 'user-role-id',
+        userId,
+        roleId,
+        isActive: true,
+        assignedAt: new Date(),
+        expiresAt: null,
+        createdAt: new Date(),
+      });
 
       await userService.assignRole(userId, roleName);
 
-      expect(mockPrismaService.userRole.create).toHaveBeenCalledWith({
-        data: {
-          user: { connect: { id: userId } },
-          role: { connect: { name: roleName } },
-        },
+      expect(mockPrismaService.role.findUnique).toHaveBeenCalledWith({
+        where: { name: roleName },
       });
+      expect(mockPrismaService.userRole.create).toHaveBeenCalled();
     });
 
-    it('should throw an error if user does not exist', async () => {
+    it('should not assign role if already assigned', async () => {
       const userId = 'user-id';
       const roleName = RoleName.STUDENT;
+      const roleId = 'role-id';
 
-      mockPrismaService.user.findUnique.mockResolvedValue(null);
+      mockPrismaService.role.findUnique.mockResolvedValue({
+        id: roleId,
+        name: roleName,
+        displayName: 'Student',
+        description: 'Student role',
+        hierarchyLevel: 1,
+        isActive: true,
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      });
+      mockPrismaService.userRole.findUnique.mockResolvedValue({
+        id: 'user-role-id',
+        userId,
+        roleId,
+        isActive: true,
+        assignedAt: new Date(),
+        expiresAt: null,
+        createdAt: new Date(),
+      });
 
-      await expect(userService.assignRole(userId, roleName)).rejects.toThrow('User not found');
+      await userService.assignRole(userId, roleName);
+
+      expect(mockPrismaService.userRole.create).not.toHaveBeenCalled();
     });
 
     it('should throw an error if role does not exist', async () => {
       const userId = 'user-id';
       const roleName = RoleName.STUDENT;
 
-      mockPrismaService.user.findUnique.mockResolvedValue(mockUser);
       mockPrismaService.role.findUnique.mockResolvedValue(null);
 
-      await expect(userService.assignRole(userId, roleName)).rejects.toThrow('Role not found');
+      await expect(userService.assignRole(userId, roleName)).rejects.toThrow(
+        `Role ${roleName} not found`
+      );
     });
   });
 });

@@ -1,13 +1,30 @@
 import { Test, type TestingModule } from '@nestjs/testing';
 
+import { PrismaService } from '../common/services/prisma.service';
+
 import { TestController } from './test.controller';
 
 describe('TestController', () => {
   let controller: TestController;
+  let mockPrismaService: Partial<PrismaService>;
 
   beforeEach(async () => {
+    mockPrismaService = {
+      $connect: jest.fn(),
+      $disconnect: jest.fn(),
+      role: {
+        count: jest.fn().mockResolvedValue(5),
+      },
+    } as unknown as PrismaService;
+
     const module: TestingModule = await Test.createTestingModule({
       controllers: [TestController],
+      providers: [
+        {
+          provide: PrismaService,
+          useValue: mockPrismaService,
+        },
+      ],
     }).compile();
 
     controller = module.get<TestController>(TestController);
