@@ -16,7 +16,7 @@ export type CurrentUserData = UserWithRoles;
  * }
  * ```
  */
-export const CurrentUser = createParamDecorator(
+export const CurrentUser = createParamDecorator<unknown, ExecutionContext, UserWithRoles>(
   (_data: unknown, ctx: ExecutionContext): UserWithRoles => {
     const request = ctx.switchToHttp().getRequest<RequestWithUser>();
     return request.user;

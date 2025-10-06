@@ -243,6 +243,7 @@ export class AuthController {
     description: 'Unauthorized',
   })
   @ApiBearerAuth()
+  // eslint-disable-next-line @typescript-eslint/no-unsafe-call -- NestJS decorator, properly typed
   getProfile(@CurrentUser() user: CurrentUserData): UserResponseDto {
     return new UserResponseDto(user);
   }
@@ -268,6 +269,7 @@ export class AuthController {
     },
   })
   @ApiBearerAuth()
+  // eslint-disable-next-line @typescript-eslint/no-unsafe-call -- NestJS decorator, properly typed
   async logout(@CurrentUser() user: CurrentUserData): Promise<{ message: string }> {
     await this.authService.logout(user.id);
     return { message: 'Logged out successfully' };
