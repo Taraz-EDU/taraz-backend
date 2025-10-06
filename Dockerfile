@@ -8,9 +8,8 @@ WORKDIR /app
 COPY package*.json ./
 
 # Install all dependencies (including dev dependencies for build)
-# Skip husky installation in Docker
-ENV HUSKY=0
-RUN npm ci && npm cache clean --force
+# Skip all lifecycle scripts (including husky prepare script)
+RUN npm ci --ignore-scripts && npm cache clean --force
 
 # Copy source code
 COPY . .
@@ -36,9 +35,8 @@ COPY package*.json ./
 COPY prisma ./prisma
 
 # Install only production dependencies
-# Skip husky installation in Docker
-ENV HUSKY=0
-RUN npm ci --only=production && npm cache clean --force
+# Skip all lifecycle scripts (including husky prepare script)
+RUN npm ci --omit=dev --ignore-scripts && npm cache clean --force
 
 # Generate Prisma Client for production
 RUN npx prisma generate
