@@ -22,10 +22,13 @@ COPY . .
 RUN npm run build
 
 # Verify build output exists
-RUN ls -la dist/ && test -f dist/main.js
+RUN ls -la dist/ && ls -la dist/src/ && test -f dist/src/main.js
 
 # Production stage
 FROM node:18-alpine AS production
+
+# Install build dependencies for native modules
+RUN apk add --no-cache python3 make g++
 
 # Create non-root user
 RUN addgroup -g 1001 -S nodejs
@@ -42,14 +45,20 @@ COPY prisma ./prisma
 # Skip all lifecycle scripts (including husky prepare script)
 RUN npm ci --omit=dev --ignore-scripts && npm cache clean --force
 
+# Rebuild native modules (like bcrypt) for the current platform
+RUN npm rebuild bcrypt --build-from-source
+
 # Copy built application
 COPY --from=builder /app/dist ./dist
 
 # Generate Prisma Client for production (after copying dist)
 RUN npx prisma generate
 
+# Remove build dependencies to reduce image size
+RUN apk del python3 make g++
+
 # Verify files exist
-RUN ls -la dist/ && test -f dist/main.js
+RUN ls -la dist/ && ls -la dist/src/ && test -f dist/src/main.js
 
 # Change ownership to non-root user
 RUN chown -R nestjs:nodejs /app
@@ -60,7 +69,7 @@ EXPOSE 3030
 
 # Health check
 HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
-  CMD node dist/health-check.js
+  CMD node dist/src/health-check.js
 
 # Start the application
-CMD ["node", "dist/main.js"]
+CMD ["node", "dist/src/main.js"]
