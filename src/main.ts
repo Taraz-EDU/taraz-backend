@@ -39,12 +39,16 @@ async function bootstrap(): Promise<void> {
   });
 
   const port = process.env['PORT'] ?? 3030;
-  await app.listen(port);
+  const host = process.env['HOST'] ?? '0.0.0.0';
+
+  await app.listen(port, host);
 
   // Application startup logging
   // eslint-disable-next-line no-console
-  console.log(`🚀 Application is running on: http://localhost:${port}`);
+  console.log(`🚀 Application is running on: http://${host}:${port}`);
   // eslint-disable-next-line no-console
-  console.log(`📚 Swagger documentation: http://localhost:${port}/api`);
+  console.log(`📚 Swagger documentation: http://${host}:${port}/api`);
+  // eslint-disable-next-line no-console
+  console.log(`💚 Health check: http://${host}:${port}/health`);
 }
 void bootstrap();

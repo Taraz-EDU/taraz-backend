@@ -1,8 +1,8 @@
 # Multi-stage Dockerfile for NestJS application
 FROM node:18-alpine AS builder
 
-# Install build dependencies
-RUN apk add --no-cache python3 make g++
+# Install OpenSSL and build dependencies
+RUN apk add --no-cache openssl openssl-dev python3 make g++
 
 # Set working directory
 WORKDIR /app
@@ -30,8 +30,8 @@ RUN ls -la dist/ && ls -la dist/src/ && test -f dist/src/main.js
 # Production stage
 FROM node:18-alpine AS production
 
-# Install build dependencies
-RUN apk add --no-cache python3 make g++
+# Install OpenSSL and build dependencies
+RUN apk add --no-cache openssl openssl-dev python3 make g++
 
 # Create non-root user
 RUN addgroup -g 1001 -S nodejs
@@ -57,7 +57,7 @@ COPY --from=builder /app/dist ./dist
 # Generate Prisma Client for production (after copying dist)
 RUN npx prisma generate
 
-# Remove build dependencies to reduce image size
+# Remove build dependencies to reduce image size (keep openssl and openssl-dev for Prisma)
 RUN apk del python3 make g++
 
 # Verify files exist
