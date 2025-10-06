@@ -4,21 +4,25 @@ FROM node:18-alpine AS builder
 # Set working directory
 WORKDIR /app
 
-# Copy package files
+# Copy package files and prisma schema
 COPY package*.json ./
+COPY prisma ./prisma
 
 # Install all dependencies (including dev dependencies for build)
 # Skip all lifecycle scripts (including husky prepare script)
 RUN npm ci --ignore-scripts && npm cache clean --force
 
+# Generate Prisma Client before copying source (needed for build)
+RUN npx prisma generate
+
 # Copy source code
 COPY . .
 
-# Generate Prisma Client
-RUN npx prisma generate
-
 # Build the application
 RUN npm run build
+
+# Verify build output exists
+RUN ls -la dist/ && test -f dist/main.js
 
 # Production stage
 FROM node:18-alpine AS production
@@ -38,11 +42,14 @@ COPY prisma ./prisma
 # Skip all lifecycle scripts (including husky prepare script)
 RUN npm ci --omit=dev --ignore-scripts && npm cache clean --force
 
-# Generate Prisma Client for production
-RUN npx prisma generate
-
 # Copy built application
 COPY --from=builder /app/dist ./dist
+
+# Generate Prisma Client for production (after copying dist)
+RUN npx prisma generate
+
+# Verify files exist
+RUN ls -la dist/ && test -f dist/main.js
 
 # Change ownership to non-root user
 RUN chown -R nestjs:nodejs /app
