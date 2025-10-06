@@ -1,6 +1,9 @@
 # Multi-stage Dockerfile for NestJS application
 FROM node:18-alpine AS builder
 
+# Install build dependencies
+RUN apk add --no-cache python3 make g++
+
 # Set working directory
 WORKDIR /app
 
@@ -27,7 +30,7 @@ RUN ls -la dist/ && ls -la dist/src/ && test -f dist/src/main.js
 # Production stage
 FROM node:18-alpine AS production
 
-# Install build dependencies for native modules
+# Install build dependencies
 RUN apk add --no-cache python3 make g++
 
 # Create non-root user
