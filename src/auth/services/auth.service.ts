@@ -55,7 +55,7 @@ export class AuthService {
     return tokens;
   }
 
-  async logout(userId: string): Promise<void> {
+  async logout(_userId: string): Promise<void> {
     // JWT tokens are stateless and managed by the client
     // No database update needed for logout
     // The client should discard the tokens
