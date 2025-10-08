@@ -68,6 +68,7 @@ export class TestController {
     };
   }
 
+  @Public()
   @Get(':id')
   @ApiOperation({ summary: 'Get test by ID' })
   @ApiParam({ name: 'id', description: 'Test ID' })
@@ -88,6 +89,7 @@ export class TestController {
     };
   }
 
+  @Public()
   @Post()
   @ApiOperation({ summary: 'Create test data' })
   @ApiBody({ type: TestRequestDto })

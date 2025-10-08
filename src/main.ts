@@ -27,6 +27,10 @@ async function bootstrap(): Promise<void> {
     .setTitle('Taraz Backend API')
     .setDescription('The Taraz Backend API documentation')
     .setVersion('1.0')
+    .addBearerAuth()
+    .addTag('auth', 'Authentication endpoints')
+    .addTag('admin', 'Admin endpoints')
+    .addTag('student', 'Student endpoints')
     .addTag('test', 'Test endpoints')
     .addTag('health', 'Health check endpoints')
     .build();
@@ -36,6 +40,7 @@ async function bootstrap(): Promise<void> {
     swaggerOptions: {
       persistAuthorization: true,
     },
+    jsonDocumentUrl: 'api.json',
   });
 
   const port = process.env['PORT'] ?? 3030;
@@ -48,6 +53,8 @@ async function bootstrap(): Promise<void> {
   console.log(`🚀 Application is running on: http://${host}:${port}`);
   // eslint-disable-next-line no-console
   console.log(`📚 Swagger documentation: http://${host}:${port}/api`);
+  // eslint-disable-next-line no-console
+  console.log(`📄 Swagger JSON: http://${host}:${port}/api.json`);
   // eslint-disable-next-line no-console
   console.log(`💚 Health check: http://${host}:${port}/health`);
 }
