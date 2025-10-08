@@ -40,24 +40,26 @@ export class AuthService {
     const tokens = await this.getTokens(user.id, user.email);
     await this.userService.update(user.id, {
       lastLoginAt: new Date(),
-      ...tokens,
     });
     return tokens;
   }
 
-  async register(createUserDto: CreateUserDto): Promise<void> {
+  async register(
+    createUserDto: CreateUserDto
+  ): Promise<{ accessToken: string; refreshToken: string }> {
     const newUser = await this.userService.create(createUserDto, [RoleName.STUDENT]);
     const tokens = await this.getTokens(newUser.id, newUser.email);
     await this.userService.update(newUser.id, {
       status: UserStatus.PENDING_VERIFICATION,
-      ...tokens,
     });
+    return tokens;
   }
 
   async logout(userId: string): Promise<void> {
-    await this.userService.update(userId, {
-      refreshToken: null,
-    });
+    // JWT tokens are stateless and managed by the client
+    // No database update needed for logout
+    // The client should discard the tokens
+    return;
   }
 
   async refreshTokens(

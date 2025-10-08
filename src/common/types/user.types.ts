@@ -37,8 +37,6 @@ export interface UpdateUserData {
   passwordResetToken?: string | null;
   passwordResetExpires?: Date | null;
   lastLoginAt?: Date | null;
-  refreshToken?: string | null;
-  accessToken?: string | null;
 }
 
 export { UserStatus, RoleName };

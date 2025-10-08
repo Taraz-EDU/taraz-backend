@@ -15,6 +15,7 @@ import { CurrentUser, type CurrentUserData } from '../decorators/current-user.de
 import { Public } from '../decorators/public.decorator';
 import { AuthResponseDto, UserResponseDto } from '../dto/auth-response.dto';
 import { ForgotPasswordDto } from '../dto/forgot-password.dto';
+import { LoginDto } from '../dto/login.dto';
 import { RegisterDto } from '../dto/register.dto';
 import { ResetPasswordDto } from '../dto/reset-password.dto';
 import { VerifyEmailDto } from '../dto/verify-email.dto';
@@ -27,6 +28,7 @@ import { AuthService } from '../services/auth.service';
 export class AuthController {
   constructor(private readonly authService: AuthService) {}
 
+  @Public()
   @Post('register')
   @HttpCode(HttpStatus.CREATED)
   @ApiOperation({
@@ -39,8 +41,13 @@ export class AuthController {
     schema: {
       type: 'object',
       properties: {
-        user: {
-          $ref: '#/components/schemas/UserResponseDto',
+        accessToken: {
+          type: 'string',
+          example: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...',
+        },
+        refreshToken: {
+          type: 'string',
+          example: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...',
         },
         message: {
           type: 'string',
@@ -77,21 +84,37 @@ export class AuthController {
     },
   })
   @ApiBody({ type: RegisterDto })
-  async register(@Body() registerDto: RegisterDto): Promise<{ message: string }> {
-    await this.authService.register(registerDto);
+  async register(
+    @Body() registerDto: RegisterDto
+  ): Promise<{ accessToken: string; refreshToken: string; message: string }> {
+    const tokens = await this.authService.register(registerDto);
     return {
+      ...tokens,
       message: 'Registration successful. Please check your email to verify your account.',
     };
   }
 
-  @Post('login')
   @Public()
-  @UseGuards(JwtAuthGuard)
+  @Post('login')
   @HttpCode(HttpStatus.OK)
-  @ApiOperation({ summary: 'Log in a user' })
-  async login(@Request() req: RequestWithUser): Promise<AuthResponseDto> {
-    const tokens = await this.authService.login(req.user);
-    return new AuthResponseDto(req.user, tokens.accessToken, tokens.refreshToken);
+  @ApiOperation({
+    summary: 'Log in a user',
+    description: 'Authenticate user with email and password',
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Login successful',
+    type: AuthResponseDto,
+  })
+  @ApiResponse({
+    status: 401,
+    description: 'Invalid credentials',
+  })
+  @ApiBody({ type: LoginDto })
+  async login(@Body() loginDto: LoginDto): Promise<AuthResponseDto> {
+    const user = await this.authService.validateUser(loginDto);
+    const tokens = await this.authService.login(user);
+    return new AuthResponseDto(user, tokens.accessToken, tokens.refreshToken);
   }
 
   @Get('refresh')
