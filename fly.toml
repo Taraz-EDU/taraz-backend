@@ -16,7 +16,7 @@ primary_region = 'fra'
   JWT_REFRESH_EXPIRES_IN = "7d"
   BCRYPT_SALT_ROUNDS = "12"
   SMTP_PORT = "587"
-  CORS_ORIGIN = "https://your-frontend-domain.com"
+  CORS_ORIGIN = "http://localhost:3000,http://localhost:3001,http://localhost:5173,https://taraz-frontend.fly.dev,https://tarazedu.com,https://www.tarazedu.com"
   LOG_LEVEL = "info"
 
 [http_service]
