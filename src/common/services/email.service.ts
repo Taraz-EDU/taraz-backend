@@ -88,4 +88,23 @@ export class EmailService {
       },
     });
   }
+
+  async sendContactNotification(
+    contactName: string,
+    contactEmail: string,
+    message: string
+  ): Promise<boolean> {
+    const adminEmail = 'eadomestic@gmail.com';
+
+    return this.sendEmail({
+      to: adminEmail,
+      subject: `New Contact Form Submission from ${contactName}`,
+      template: 'contact-notification',
+      context: {
+        contactName,
+        contactEmail,
+        message,
+      },
+    });
+  }
 }

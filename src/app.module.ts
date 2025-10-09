@@ -8,6 +8,7 @@ import { AuthModule } from './auth/auth.module';
 import { JwtAuthGuard } from './auth/guards/jwt-auth.guard';
 import { PrismaService } from './common/services/prisma.service';
 import authConfig from './config/auth.config';
+import { ContactModule } from './contact/contact.module';
 import { HealthModule } from './health/health.module';
 import { TestModule } from './test/test.module';
 
@@ -19,6 +20,7 @@ import { TestModule } from './test/test.module';
       envFilePath: ['.env.local', '.env'],
     }),
     AuthModule,
+    ContactModule,
     HealthModule,
     TestModule,
   ],

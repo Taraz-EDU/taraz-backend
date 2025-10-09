@@ -79,3 +79,15 @@ model UserRole {
   @@unique([userId, roleId])
   @@map("user_roles")
 }
+
+model Contact {
+  id        String   @id @default(uuid())
+  name      String   @db.VarChar(255)
+  email     String   @db.VarChar(255)
+  message   String   @db.Text
+  createdAt DateTime @default(now())
+
+  @@index([createdAt])
+  @@index([email])
+  @@map("contacts")
+}
