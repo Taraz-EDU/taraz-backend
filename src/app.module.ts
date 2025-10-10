@@ -10,6 +10,7 @@ import { PrismaService } from './common/services/prisma.service';
 import authConfig from './config/auth.config';
 import { ContactModule } from './contact/contact.module';
 import { HealthModule } from './health/health.module';
+import { MediaModule } from './media/media.module';
 import { TestModule } from './test/test.module';
 
 @Module({
@@ -22,6 +23,7 @@ import { TestModule } from './test/test.module';
     AuthModule,
     ContactModule,
     HealthModule,
+    MediaModule,
     TestModule,
   ],
   controllers: [AppController],

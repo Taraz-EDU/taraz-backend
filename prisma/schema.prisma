@@ -91,3 +91,76 @@ model Contact {
   @@index([email])
   @@map("contacts")
 }
+
+enum MediaType {
+  IMAGE
+  VIDEO
+  DOCUMENT
+  AUDIO
+  OTHER
+}
+
+enum MediaStatus {
+  UPLOADING
+  PROCESSING
+  READY
+  FAILED
+  DELETED
+}
+
+enum EntityType {
+  USER
+  COURSE
+  LESSON
+  ASSIGNMENT
+  POST
+  COMMENT
+  OTHER
+}
+
+model Media {
+  id           String      @id @default(uuid())
+  // File information
+  fileName     String      @db.VarChar(255)
+  originalName String      @db.VarChar(255)
+  mimeType     String      @db.VarChar(100)
+  fileSize     Int         // in bytes
+  type         MediaType
+  status       MediaStatus @default(UPLOADING)
+  
+  // S3 information
+  s3Key        String      @unique @db.VarChar(500)
+  s3Bucket     String      @db.VarChar(255)
+  s3Region     String      @db.VarChar(50)
+  s3Url        String      @db.VarChar(1000)
+  
+  // Polymorphic relationship fields
+  entityType   EntityType?
+  entityId     String?     @db.VarChar(255)
+  
+  // Optional metadata
+  description  String?     @db.Text
+  alt          String?     @db.VarChar(500) // For images (accessibility)
+  duration     Int?        // For video/audio in seconds
+  width        Int?        // For images/videos
+  height       Int?        // For images/videos
+  thumbnailUrl String?     @db.VarChar(1000)
+  
+  // Ownership and tracking
+  uploadedById String
+  uploadedByIp String?     @db.VarChar(45) // IPv6 compatible
+  isPublic     Boolean     @default(false)
+  
+  // Timestamps
+  createdAt    DateTime    @default(now())
+  updatedAt    DateTime    @updatedAt
+  deletedAt    DateTime?   // Soft delete
+  
+  @@index([entityType, entityId])
+  @@index([uploadedById])
+  @@index([type])
+  @@index([status])
+  @@index([createdAt])
+  @@index([s3Key])
+  @@map("media")
+}
